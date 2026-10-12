@@ -2,105 +2,200 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import * as DictionaryService from '../services/dictionary.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { API_URL } from '../../core/api';
+import { DICTIONARY_CATEGORIES } from '../../core/constants';
+
+interface DictionaryItem {
+  _id?: string;
+  category: string;
+  name: string;
+  value: string;
+  isActive?: boolean;
+}
 
 @Component({
   selector: 'app-dictionaries',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="container">
-      <h1>Справочники</h1>
-      <div class="filter-bar">
-        <select [(ngModel)]="selectedCategory" (change)="fetchByCategory()">
-          <option value="">Все категории</option>
-          <option *ngFor="let cat of categories" [value]="cat">{{cat}}</option>
-        </select>
+    <div class="page">
+      <div class="row-between mb-4">
+        <div>
+          <h1 class="page-title">Справочники</h1>
+          <p class="muted">Категории, единицы измерения, поставщики, заказчики</p>
+        </div>
       </div>
 
-      <div class="table-container">
-        <table class_table>
+      <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+      <div class="alert alert-success" *ngIf="notice">{{ notice }}</div>
+
+      <div class="card mb-4">
+        <div class="filters">
+          <select [(ngModel)]="selectedCategory" (change)="fetch()">
+            <option value="">Все категории</option>
+            <option *ngFor="let cat of categories" [value]="cat">{{ categoryLabel(cat) }}</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-wrap mb-4">
+        <table class="data">
           <thead>
             <tr>
               <th>Категория</th>
               <th>Наименование</th>
               <th>Значение</th>
-              <th>Действия</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
             <tr *ngFor="let item of items">
-              <td>{{item.category}}</td>
-              <td>{{item.name}}</td>
-              <td>{{item.value}}</td>
-              <td>
-                <button (click)="editItem(item)">✏️</button>
-                <button (click)="deleteItem(item._id)">🗑️</button>
+              <td><span class="badge badge-slate">{{ categoryLabel(item.category) }}</span></td>
+              <td>{{ item.name }}</td>
+              <td class="muted">{{ item.value }}</td>
+              <td class="text-right">
+                <button class="btn-ghost" title="Редактировать" (click)="startEdit(item)">✏️</button>
+                <button class="btn-ghost" title="Удалить" (click)="remove(item)">🗑️</button>
               </td>
             </tr>
           </tbody>
         </table>
+        <div class="empty" *ngIf="!loading && items.length === 0">
+          <div class="empty-title">Записей нет</div>
+          <div>Добавьте первую запись ниже</div>
+        </div>
       </div>
 
-      <div class="add-form">
-        <h3>Добавить запись</h3>
-        <input [(ngModel)]="newItem.name" placeholder="Наименование" />
-        <select [(ngModel)]="newItem.category">
-          <option *ngFor="let c of categories" [value]="c">{{c}}</option>
-        </select>
-        <input [(ngModel)]="newItem.value" placeholder="Значение" />
-        <button (click)="addItem()">Добавить</button>
+      <div class="spinner" *ngIf="loading"></div>
+
+      <div class="card">
+        <h3 class="mb-4">{{ editingId ? 'Редактировать запись' : 'Новая запись' }}</h3>
+        <form (ngSubmit)="save()">
+          <div class="grid">
+            <div class="field">
+              <label>Категория *</label>
+              <select [(ngModel)]="form.category" name="category" required>
+                <option value="" disabled>Выберите…</option>
+                <option *ngFor="let c of categories" [value]="c">{{ categoryLabel(c) }}</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Наименование *</label>
+              <input [(ngModel)]="form.name" name="name" required />
+            </div>
+            <div class="field">
+              <label>Значение</label>
+              <input [(ngModel)]="form.value" name="value" />
+            </div>
+          </div>
+          <div class="row">
+            <button type="submit" class="btn-primary" [disabled]="saving">
+              {{ saving ? 'Сохранение…' : editingId ? 'Обновить' : 'Добавить' }}
+            </button>
+            <button type="button" (click)="resetForm()" *ngIf="editingId">Отмена</button>
+          </div>
+        </form>
       </div>
     </div>
   `,
   styles: [`
-    .container { padding: 20px; }
-    .filter-bar { margin-bottom: 20px; }
-    .table-container { overflow-x: auto; }
-    .table_table { width: 100%; border-collapse: collapse; }
-    .table_table th, .table_table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    .table_table th { background: #f4f4f4; }
-    .add-form { margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
-    input, select { margin-right: 10px; padding: 8px; }
-    button { padding: 8px 16px; cursor: pointer; }
-  `]
+    .page { max-width: 1000px; margin: 0 auto; }
+    .page-title { margin: 0 0 2px; font-size: 22px; }
+    .filters { display: flex; gap: 10px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+  `],
 })
 export class DictionariesComponent implements OnInit {
-  items: any[] = [];
-  categories: string[] = ['Оборудование', 'Покупные изделия', 'Расходники', 'Метизы', 'Услуги'];
+  items: DictionaryItem[] = [];
+  readonly categories = DICTIONARY_CATEGORIES;
   selectedCategory = '';
-  newItem: any = { name: '', category: '', value: '' };
+  loading = false;
+  saving = false;
+  error = '';
+  notice = '';
+
+  editingId = '';
+  form: DictionaryItem = { category: 'Types', name: '', value: '' };
 
   constructor(private http: HttpClient) {}
 
-  ngOnInit() {
-    this.fetchItems();
+  ngOnInit(): void {
+    this.fetch();
   }
 
-  fetchItems() {
-    const url = this.selectedCategory ? `http://localhost:3000/api/dictionaries/${this.selectedCategory}` : `http://localhost:3000/api/dictionaries`;
-    this.http.get<any[]>(url).subscribe(data => this.items = data);
+  fetch(): void {
+    this.loading = true;
+    this.error = '';
+    const url = this.selectedCategory
+      ? `${API_URL}/api/dictionaries/${encodeURIComponent(this.selectedCategory)}`
+      : `${API_URL}/api/dictionaries`;
+
+    this.http
+      .get<DictionaryItem[]>(url)
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: data => (this.items = data),
+        error: () => (this.error = 'Не удалось загрузить справочник'),
+        complete: () => (this.loading = false),
+      });
   }
 
-  fetchByCategory() {
-    this.fetchItems();
+  startEdit(item: DictionaryItem): void {
+    this.editingId = item._id ?? '';
+    this.form = { ...item };
   }
 
-  addItem() {
-    this.http.post('http://localhost:3000/api/dictionaries', this.newItem).subscribe(() => {
-      this.items = [];
-      this.fetchItems();
+  resetForm(): void {
+    this.editingId = '';
+    this.form = { category: 'Types', name: '', value: '' };
+  }
+
+  save(): void {
+    this.saving = true;
+    this.error = '';
+    const request = this.editingId
+      ? this.http.put<DictionaryItem>(`${API_URL}/api/dictionaries/${this.editingId}`, this.form)
+      : this.http.post<DictionaryItem>(`${API_URL}/api/dictionaries`, this.form);
+
+    request.pipe(takeUntilDestroyed()).subscribe({
+      next: () => {
+        this.saving = false;
+        this.notice = this.editingId ? 'Запись обновлена' : 'Запись добавлена';
+        setTimeout(() => (this.notice = ''), 3000);
+        this.resetForm();
+        this.fetch();
+      },
+      error: err => {
+        this.saving = false;
+        this.error = err?.error?.error || 'Ошибка сохранения';
+      },
     });
   }
 
-  deleteItem(id: string) {
-    this.http.delete(`http://localhost:3000/api/dictionaries/${id}`).subscribe(() => {
-      this.items = this.items.filter(i => i._id !== id);
-    });
+  remove(item: DictionaryItem): void {
+    if (!confirm(`Удалить «${item.name}»?`)) return;
+    this.http
+      .delete(`${API_URL}/api/dictionaries/${item._id}`)
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: () => {
+          this.items = this.items.filter(i => i._id !== item._id);
+          this.notice = 'Запись удалена';
+          setTimeout(() => (this.notice = ''), 3000);
+        },
+        error: err => (this.error = err?.error?.error || 'Ошибка удаления'),
+      });
   }
 
-  editItem(item: any) {
-    this.newItem = { ...item };
+  categoryLabel(category: string): string {
+    const labels: Record<string, string> = {
+      Types: 'Типы товаров',
+      Units: 'Единицы измерения',
+      Suppliers: 'Поставщики',
+      Customers: 'Заказчики',
+    };
+    return labels[category] ?? category;
   }
 }

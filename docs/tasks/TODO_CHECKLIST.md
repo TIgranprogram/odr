@@ -17,17 +17,28 @@
 - [x] Frontend: оболочка приложения — `AppComponent`, layout с sidebar/header
       (`shell.component.ts`), вложенные маршруты, `authGuard`, JWT-интерцептор
 - [x] Frontend: реальный логин (`POST /api/auth/login`, сохранение токена, редирект)
+- [x] Frontend: все страницы переписаны — заявки (CRUD + поиск + фильтры), заказы,
+      счета (создание с позициями), справочники (CRUD + категории из seed),
+      склад (остатки + журнал движений), ОДР (выбор периода)
+- [x] Frontend: `ng build` проходит без ошибок (10 ленивых чанков)
+- [x] Frontend: `Dockerfile` + `nginx.conf` созданы
 - [x] Backend: исправлена версия `class-validator` (несуществующая `0.18.0` → `0.14.1`)
 - [x] Backend: зависимости установлены
 - [x] Docker Desktop установлен и запущен (сервер 29.8.2, Compose v5.6.0)
+- [x] MongoDB-контейнер `odr-mongo` запущен (порт 27017)
+- [x] `docker-compose.yml` переписан (mongodb + backend + frontend, healthcheck, volume)
 
 ### ⏳ В работе (идёт починка)
 - [ ] Backend: компиляция — **7 блокеров** (см. `TECH_TASKS.md` §2)
       ключевые: несуществующий `routes/orders.ts`, `dictionary.service.ts` написан
       на Python, нет `hashPassword`, нет `tsconfig.json`, `import * as Service`
       поверх `export default` → `undefined` в рантайме
+      **Прогресс 13.10:** созданы `routes/orders.ts`, `tsconfig.json`, `src/config/env.ts`,
+      `src/types/express.d.ts`; изменены все контроллеры/сервисы/модели. Осталось:
+      дождаться верификации (`tsc --noEmit`, seed, health) и закоммитить.
 - [ ] Seed: парсинг CSV сломан (шапка склада в строке 6, даты dd.mm.yyyy,
       цены с `₽`, `invoiceRef` не ObjectId) + не создаётся админ → логин невозможен
+      **Прогресс 13.10:** `scripts/seed.ts` изменён — ждём проверки.
 
 ### ❌ Не начато
 - [ ] Backend: `authMiddleware` не подключён ни к одному роуту → **API полностью открыт**

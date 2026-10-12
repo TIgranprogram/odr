@@ -1,142 +1,348 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { API_URL } from '../../core/api';
+import { STATUSES, PRIORITIES } from '../../core/constants';
+
+interface Requisition {
+  _id?: string;
+  category: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  supplier: string;
+  customer: string;
+  company: string;
+  priority: string;
+  status: string;
+  priceWithVat: number;
+  date?: string;
+  requestedBy?: string;
+}
 
 @Component({
   selector: 'app-requisitions',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <div class="container">
-      <h1 class.title>Панель Снабжения (Заявки)</h1>
-      
-      <div class="actions">
-        <button (click)="showCreateForm = !showCreateForm" class="btn-primary">Создать заявку</button>
+    <div class="page">
+      <div class="row-between mb-4">
+        <div>
+          <h1 class="page-title">Панель снабжения — Заявки</h1>
+          <p class="muted">Создание и контроль заявок на закупку</p>
+        </div>
+        <button class="btn-primary" (click)="openCreate()">＋ Новая заявка</button>
       </div>
 
-      <div class="filters">
-        <input type="text" placeholder="Поиск..." [(ngModel)]="filters.search" (input)="fetchRequisitions()">
-        <select [(ngModel)]="filters.status" (change)="fetchRequisitions()">
-          <option value="">Все статусы</option>
-          <option value="⏳ Ожидает">⏳ Ожидает</option>
-          <option value="✅ Заказать">✅ Заказать</option>
-          <option value="💰 Оплачено">💰 Оплачено</option>
-          <option value="⚙️ В работе">⚙. В работе</option>
-          <option value="☑️ Получено">☑️ Получено</option>
-          <option value="Отменено">Отменено</option>
-        </select>
+      <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+      <div class="alert alert-success" *ngIf="notice">{{ notice }}</div>
+
+      <div class="card mb-4">
+        <div class="filters">
+          <input
+            class="grow"
+            type="text"
+            placeholder="Поиск по наименованию, артикулу, поставщику…"
+            [(ngModel)]="filters.search"
+            (input)="fetch()"
+          />
+          <select [(ngModel)]="filters.status" (change)="fetch()">
+            <option value="">Все статусы</option>
+            <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+          </select>
+          <select [(ngModel)]="filters.customer" (change)="fetch()">
+            <option value="">Все заказчики</option>
+            <option *ngFor="let c of customers" [value]="c">{{ c }}</option>
+          </select>
+        </div>
       </div>
 
-      <div class="table-container">
-        <table class_table>
+      <div class="table-wrap">
+        <table class="data">
           <thead>
             <tr>
               <th>Дата</th>
               <th>Наименование</th>
-              <th>Кол-во</th>
+              <th class="num">Кол-во</th>
               <th>Поставщик</th>
+              <th>Заказчик</th>
               <th>Статус</th>
-              <th>Сумма</th>
-              <th>Действия</th>
+              <th class="num">Сумма с НДС</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let item of requisitions">
-              <td>{{item.date | date:'dd.MM.yyyy'}}</td>
-              <td>{{item.itemName}}</td>
-              <td>{{item.quantity}} {{item.unit}}</td>
-              <td>{{item.supplier}}</td>
-              <td><span class="status-badge">{{item.status}}</span></td>
-              <td>{{item.priceWithVat | number:'1.2-2'}} ₽</td>
+            <tr *ngFor="let item of items">
+              <td>{{ item.date | date:'dd.MM.yyyy' }}</td>
               <td>
-                <button (click)="editRequisition(item)">✏️</button>
+                <div>{{ item.itemName }}</div>
+                <div class="muted" style="font-size:12px">{{ item.category }}</div>
+              </td>
+              <td class="num">{{ item.quantity }} {{ item.unit }}</td>
+              <td>{{ item.supplier }}</td>
+              <td>{{ item.customer }}</td>
+              <td><span class="badge" [class]="statusClass(item.status)">{{ item.status }}</span></td>
+              <td class="num">{{ item.priceWithVat * item.quantity | number:'1.2-2' }} ₽</td>
+              <td>
+                <button class="btn-ghost" title="Редактировать" (click)="openEdit(item)">✏️</button>
+                <button class="btn-ghost" title="Удалить" (click)="remove(item)">🗑️</button>
               </td>
             </tr>
           </tbody>
         </table>
+        <div class="empty" *ngIf="!loading && items.length === 0">
+          <div class="empty-title">Заявок пока нет</div>
+          <div>Создайте первую заявку кнопкой выше</div>
+        </div>
       </div>
 
-      <div class.modal *ngIf="showCreateForm">
-        <div class.modal-content>
-          <h3 class="modal-title">Создать новую заявку</h3>
-          <form (submit)="createRequisition()">
-            <input [(ngModel)]="newReq.itemName" name="itemName" placeholder="Наименование позиции" required />
-            <input [(ngModel)]="newReq.quantity" name="quantity" type="number" placeholder="Кол-во" required />
-            <input [(ngModel)]="newReq.unit" name="unit" placeholder="Ед. изм." />
-            <input [(ngModel)]="newReq.supplier" name="supplier" placeholder="Поставщик" />
-            <input [(ngModel)]="newReq.customer" name="customer" placeholder="Заказчик" />
-            <input [(ngModel)]="newReq.priceWithVat" name="priceWithVat" type="number" placeholder="Цена с НДС" />
-            <select [(ngModel)]="newReq.status" name="status">
-              <option value="⏳ Ожидает">⏳ Ожидает</option>
-              <option value="✅ Заказать">✅ Заказать</option>
-              <option value="⚙️ В работе">⚙️ В работе</option>
-              <option value="☑️ Получено">☑️ Получено</option>
-            </select>
-            <button type="submit" class="btn-primary">Сохранить</button>
-            <button type="button" (click)="showCreateForm = false">Отмена</button>
+      <div class="spinner" *ngIf="loading"></div>
+
+      <!-- Модальное окно создания / редактирования -->
+      <div class="modal-backdrop" *ngIf="showForm" (click)="closeForm()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="row-between mb-4">
+            <h2 class="modal-title">{{ editingId ? 'Редактировать заявку' : 'Новая заявка' }}</h2>
+            <button class="btn-ghost" (click)="closeForm()">✕</button>
+          </div>
+
+          <form (ngSubmit)="save()">
+            <div class="grid">
+              <div class="field">
+                <label>Категория *</label>
+                <select [(ngModel)]="form.category" name="category" required>
+                  <option value="" disabled>Выберите…</option>
+                  <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Наименование *</label>
+                <input [(ngModel)]="form.itemName" name="itemName" required />
+              </div>
+              <div class="field">
+                <label>Количество *</label>
+                <input [(ngModel)]="form.quantity" name="quantity" type="number" min="0" step="0.01" required />
+              </div>
+              <div class="field">
+                <label>Ед. изм.</label>
+                <select [(ngModel)]="form.unit" name="unit">
+                  <option *ngFor="let u of units" [value]="u">{{ u }}</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Поставщик</label>
+                <input [(ngModel)]="form.supplier" name="supplier" list="suppliers" />
+                <datalist id="suppliers">
+                  <option *ngFor="let s of suppliers" [value]="s"></option>
+                </datalist>
+              </div>
+              <div class="field">
+                <label>Заказчик *</label>
+                <input [(ngModel)]="form.customer" name="customer" list="customers" required />
+                <datalist id="customers">
+                  <option *ngFor="let c of customers" [value]="c"></option>
+                </datalist>
+              </div>
+              <div class="field">
+                <label>Компания</label>
+                <select [(ngModel)]="form.company" name="company">
+                  <option>СИЮ</option>
+                  <option>ССЮ</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Приоритет</label>
+                <select [(ngModel)]="form.priority" name="priority">
+                  <option *ngFor="let p of priorities" [value]="p">{{ p }}</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Цена с НДС (за ед.) *</label>
+                <input [(ngModel)]="form.priceWithVat" name="priceWithVat" type="number" min="0" step="0.01" required />
+              </div>
+              <div class="field">
+                <label>Статус</label>
+                <select [(ngModel)]="form.status" name="status">
+                  <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row mt-2">
+              <button type="submit" class="btn-primary" [disabled]="saving">
+                {{ saving ? 'Сохранение…' : 'Сохранить' }}
+              </button>
+              <button type="button" (click)="closeForm()">Отмена</button>
+              <span class="grow"></span>
+              <span class="muted">Сумма: {{ form.priceWithVat * form.quantity | number:'1.2-2' }} ₽</span>
+            </div>
           </form>
         </div>
       </div>
     </div>
   `,
   styles: [`
-    .container { padding: 20px; }
-    .title { margin-bottom: 20px; }
-    .actions { margin-bottom: 20px; }
-    .btn-primary { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; }
-    .filters { margin-bottom: 20px; display: flex; gap: 10px; }
-    .filters input, .filters select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-    .table-container { overflow-x: auto; }
-    .table_table { width: 100%; border-collapse: collapse; }
-    .table_table th, .table_table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-    .table_table th { background: #f4f4f4; }
-    .status-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.8em; }
-    .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; }
-    .modal-content { background: white; padding: 30px; border-radius: 8px; width: 500px; }
-    .modal-title { margin-bottom: 20px; }
-    .modal-content input, .modal-content select { width: 100%; margin-bottom: 15px; padding: 8px; }
-  `]
+    .page { max-width: 1200px; margin: 0 auto; }
+    .page-title { margin: 0 0 2px; font-size: 22px; }
+    .filters { display: flex; gap: 10px; }
+    .filters input { max-width: 340px; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15,23,42,.5);
+      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+    }
+    .modal {
+      background: #fff; border-radius: 12px; padding: 24px;
+      width: 100%; max-width: 760px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal-title { margin: 0; font-size: 18px; }
+    @media (max-width: 700px) {
+      .grid { grid-template-columns: 1fr; }
+      .filters { flex-direction: column; }
+      .filters input { max-width: none; }
+    }
+  `],
 })
-export class RequisitionsComponent {
-  requisitions: any[] = [];
-  showCreateForm = false;
-  filters = { search: '', status: '' };
-  newReq: any = {
+export class RequisitionsComponent implements OnInit {
+  items: Requisition[] = [];
+  loading = false;
+  saving = false;
+  error = '';
+  notice = '';
+
+  categories: string[] = [];
+  units: string[] = [];
+  suppliers: string[] = [];
+  customers: string[] = [];
+  readonly statuses = STATUSES;
+  readonly priorities = PRIORITIES;
+
+  filters = { search: '', status: '', customer: '' };
+
+  showForm = false;
+  editingId = '';
+  form: Requisition = emptyRequisition();
+
+  constructor(private http: HttpClient) {}
+
+  ngOnInit(): void {
+    this.fetch();
+    this.fetchDictionaries();
+  }
+
+  fetch(): void {
+    this.loading = true;
+    this.error = '';
+    let params = new HttpParams();
+    if (this.filters.search) params = params.set('search', this.filters.search);
+    if (this.filters.status) params = params.set('status', this.filters.status);
+    if (this.filters.customer) params = params.set('customer', this.filters.customer);
+
+    this.http
+      .get<Requisition[]>(`${API_URL}/api/requisitions`, { params })
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: data => (this.items = data),
+        error: () => (this.error = 'Не удалось загрузить заявки'),
+        complete: () => (this.loading = false),
+      });
+  }
+
+  private fetchDictionaries(): void {
+    this.http
+      .get<{ category: string; name: string; value: string }[]>(`${API_URL}/api/dictionaries`)
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: all => {
+          this.categories = unique(all.filter(d => d.category === 'Types').map(d => d.name));
+          this.units = unique(all.filter(d => d.category === 'Units').map(d => d.name));
+          this.suppliers = unique(all.filter(d => d.category === 'Suppliers').map(d => d.name));
+          this.customers = unique(all.filter(d => d.category === 'Customers').map(d => d.name));
+        },
+      });
+  }
+
+  openCreate(): void {
+    this.editingId = '';
+    this.form = emptyRequisition();
+    this.showForm = true;
+  }
+
+  openEdit(item: Requisition): void {
+    this.editingId = item._id ?? '';
+    this.form = { ...item };
+    this.showForm = true;
+  }
+
+  closeForm(): void {
+    this.showForm = false;
+  }
+
+  save(): void {
+    this.saving = true;
+    this.error = '';
+    const payload = { ...this.form };
+    const request = this.editingId
+      ? this.http.put<Requisition>(`${API_URL}/api/requisitions/${this.editingId}`, payload)
+      : this.http.post<Requisition>(`${API_URL}/api/requisitions`, payload);
+
+    request.pipe(takeUntilDestroyed()).subscribe({
+      next: () => {
+        this.saving = false;
+        this.showForm = false;
+        this.notice = this.editingId ? 'Заявка обновлена' : 'Заявка создана';
+        setTimeout(() => (this.notice = ''), 3000);
+        this.fetch();
+      },
+      error: err => {
+        this.saving = false;
+        this.error = err?.error?.error || 'Ошибка сохранения';
+      },
+    });
+  }
+
+  remove(item: Requisition): void {
+    if (!confirm(`Удалить заявку «${item.itemName}»?`)) return;
+    this.http
+      .delete(`${API_URL}/api/requisitions/${item._id}`)
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: () => {
+          this.items = this.items.filter(i => i._id !== item._id);
+          this.notice = 'Заявка удалена';
+          setTimeout(() => (this.notice = ''), 3000);
+        },
+        error: err => (this.error = err?.error?.error || 'Ошибка удаления'),
+      });
+  }
+
+  statusClass(status: string): string {
+    if (status.includes('Ожидает')) return 'badge-amber';
+    if (status.includes('Заказать')) return 'badge-blue';
+    if (status.includes('Оплачено')) return 'badge-green';
+    if (status.includes('Получено')) return 'badge-green';
+    if (status.includes('Отменено')) return 'badge-red';
+    return 'badge-slate';
+  }
+}
+
+function emptyRequisition(): Requisition {
+  return {
+    category: '',
     itemName: '',
     quantity: 1,
     unit: 'шт',
     supplier: '',
     customer: '',
+    company: 'СИЮ',
+    priority: 'Обычный',
+    status: '⏳ Ожидает',
     priceWithVat: 0,
-    status: '⏳ Ожидает'
   };
+}
 
-  constructor(private http: HttpClient) {}
-
-  ngOnInit() {
-    this.fetchRequisitions();
-  }
-
-  fetchRequisitions() {
-    let url = `http://localhost:3000/api/requisitions?`;
-    let params = [];
-    if (this.filters.search) params.push(`search=${this.filters.search}`);
-    if (this.filters.status) params.push(`status=${this.filters.status}`);
-    
-    this.http.get(`http://localhost:3000/api/requisitions?${params.join('&')}`)
-      .subscribe(data => this.requisitions = data);
-  }
-
-  createRequisition() {
-    this.http.post('http://localhost:3000/api/requisitions', this.newReq).subscribe(() => {
-      this.showCreateForm = false;
-      this.fetchRequisitions();
-    });
-  }
-
-  editRequisition(item: any) {
-    this.newReq = { ...item };
-    this.showCreateForm = true;
-  }
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))].sort();
 }

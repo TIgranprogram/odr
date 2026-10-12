@@ -26,12 +26,13 @@
 
 - [ ] **1.1.** Убедиться, что `docker-compose up -d` поднимает MongoDB + backend + frontend без ошибок.
   - Приёмка: `docker compose ps` — все сервисы `running`, `curl http://localhost:3000/health` → `{"status":"ok"}`.
-  - Файлы: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` (**оба Dockerfile нужно создать**).
+  - Файлы: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` (**backend/Dockerfile создаётся в §2**).
 - [ ] **1.2.** Создать `backend/Dockerfile` (multi-stage: `node:20-alpine`, `npm ci`, `tsc`, `CMD ["node","dist/src/server.js"]`).
-- [ ] **1.3.** Создать `frontend/Dockerfile` (сборка `ng build` + раздача статики nginx) и `frontend/nginx.conf` (прокси `/api` на backend).
+- [x] **1.3.** Создать `frontend/Dockerfile` (сборка `ng build` + раздача статики nginx) и `frontend/nginx.conf` (прокси `/api` на backend).
+  - **13.10:** `frontend/Dockerfile` и `nginx.conf` созданы, `ng build` проходит.
 - [ ] **1.4.** Создать `.env.example` в корне (без секретов) и свести `JWT_SECRET` к одному источнику.
   - Приёмка: локальный запуск и Docker-запуск дают взаимозаменяемые токены.
-- [ ] **1.5.** Настроить MongoDB для локальной разработки: `docker run -d --name odr-mongo -p 27017:27017 mongo:7`.
+- [x] **1.5.** Настроить MongoDB для локальной разработки: `docker run -d --name odr-mongo -p 27017:27017 mongo:7`.
 - [ ] **1.6.** Проверить health-check БД: `/health` должен отражать `mongoose.connection.readyState`, а не только живость процесса.
 
 **Критерий приёмки раздела:** `docker compose up -d` → открыть `http://localhost:4200` → страница логина отрисовывается, `http://localhost:3000/health` отвечает.
@@ -59,23 +60,25 @@
 
 ## 3. 🔴 Frontend: рабочие страницы
 
-- [ ] **3.1.** `requisitions.component.ts` — форма создания не отправляет обязательные поля (`category`, `requestedBy`, `company`) → `POST` всегда 400.
+- [x] **3.1.** `requisitions.component.ts` — форма создания не отправляет обязательные поля (`category`, `requestedBy`, `company`) → `POST` всегда 400.
   - Решение: добавить поля в форму; `requestedBy` и `company` backend берёт/подставляет по умолчанию (см. 2.x).
-- [ ] **3.2.** `requisitions.component.ts:138` — «редактирование» открывает форму создания, но **не вызывает `PUT /api/requisitions/:id`** → дубликаты. Добавить `editingId` и `http.put`.
-- [ ] **3.3.** `requisitions.component.ts:127` — query-параметры склеиваются строкой без `encodeURIComponent` → кириллица ломает URL. Перейти на `HttpParams`.
-- [ ] **3.4.** Все `subscribe(...)` без error-callback → ошибки молча проглатываются. Добавить `error` + показ уведомления.
-- [ ] **3.5.** `<table class_table>` в 4 компонентах (requisitions, invoices, dictionaries, orders) — атрибут вместо `class="table_table"` → таблицы без стилей.
-- [ ] **3.6.** `orders.component.ts:31` — `</</tbody>` → ошибка парсера шаблона, сборка падает.
-- [ ] **3.7.** `orders.component.ts` — класс `OrderComponent` при файле `orders.component.ts`; маршрут `orders` не подключён (после исправления подключён в `shell.routes.ts` — проверить).
-- [ ] **3.8.** `warehouse.component.ts` — заглушка «Content coming soon». Реализовать: таблица остатков (`StockItem`: currentStock/freeStock/minStock/status) + журнал движений (`WarehouseMovement`).
-- [ ] **3.9.** `dictionaries.component.ts:6` — импорт несуществующего `../services/dictionary.service` (сборка падает). Удалить.
-- [ ] **3.10.** `dictionaries.component.ts:71` — категории захардкожены (`Оборудование`, …), а seed пишет `Types/Units/Suppliers/Customers` → фильтр всегда пуст. **Согласовать со seed** (см. 2.x отчёт).
-- [ ] **3.11.** `dictionaries.component.ts` — `PUT /api/dictionaries/:id` не вызывается при редактировании → дубликаты.
-- [ ] **3.12.** `invoices.component.ts` — только чтение. Добавить создание счёта (`POST /api/invoices`) с позициями `items[]`.
-- [ ] **3.13.** `reports/odr.component.ts:68-70` — вычислены `start`/`end`, но **не передаются в запрос** → всегда отчёт «с начала месяца». Передать `?start=&end=`.
-- [ ] **3.14.** `reports/odr.component.ts:29` — `report.range.startDate` без `?.` → падение при ошибке API.
+- [x] **3.2.** `requisitions.component.ts:138` — «редактирование» открывает форму создания, но **не вызывает `PUT /api/requisitions/:id`** → дубликаты. Добавить `editingId` и `http.put`.
+- [x] **3.3.** `requisitions.component.ts:127` — query-параметры склеиваются строкой без `encodeURIComponent` → кириллица ломает URL. Перейти на `HttpParams`.
+- [x] **3.4.** Все `subscribe(...)` без error-callback → ошибки молча проглатываются. Добавить `error` + показ уведомления.
+- [x] **3.5.** `<table class_table>` в 4 компонентах (requisitions, invoices, dictionaries, orders) — атрибут вместо `class="table_table"` → таблицы без стилей.
+- [x] **3.6.** `orders.component.ts:31` — `</</tbody>` → ошибка парсера шаблона, сборка падает.
+- [x] **3.7.** `orders.component.ts` — класс `OrderComponent` при файле `orders.component.ts`; маршрут `orders` не подключён (после исправления подключён в `shell.routes.ts` — проверить).
+- [x] **3.8.** `warehouse.component.ts` — заглушка «Content coming soon». Реализовать: таблица остатков (`StockItem`: currentStock/freeStock/minStock/status) + журнал движений (`WarehouseMovement`).
+- [x] **3.9.** `dictionaries.component.ts:6` — импорт несуществующего `../services/dictionary.service` (сборка падает). Удалить.
+- [x] **3.10.** `dictionaries.component.ts:71` — категории захардкожены (`Оборудование`, …), а seed пишет `Types/Units/Suppliers/Customers` → фильтр всегда пуст. **Согласовать со seed** (см. 2.x отчёт).
+- [x] **3.11.** `dictionaries.component.ts` — `PUT /api/dictionaries/:id` не вызывается при редактировании → дубликаты.
+- [x] **3.12.** `invoices.component.ts` — только чтение. Добавить создание счёта (`POST /api/invoices`) с позициями `items[]`.
+- [x] **3.13.** `reports/odr.component.ts:68-70` — вычислены `start`/`end`, но **не передаются в запрос** → всегда отчёт «с начала месяца». Передать `?start=&end=`.
+- [x] **3.14.** `reports/odr.component.ts:29` — `report.range.startDate` без `?.` → падение при ошибке API.
 
 **Критерий приёмки:** на каждой странице видны реальные данные из MongoDB; создание/редактирование/удаление работают; ошибки видны пользователю.
+
+**Статус 13.10.2026:** ✅ Все пункты реализованы, `ng build` проходит без ошибок (10 ленивых чанков).
 
 ---
 

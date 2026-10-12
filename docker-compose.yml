@@ -1,32 +1,49 @@
-version: '3.8'
+name: odr
 
 services:
   mongodb:
     image: mongo:7
-    container_name: kppdf-mongodb
+    container_name: odr-mongodb
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
-      - ./data/db:/data/db
-    restart: always
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   backend:
-    build: ./backend
-    container_name: kppdf-backend
+    build:
+      context: ./backend
+    container_name: odr-backend
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      MONGO_URI: mongodb://mongodb:27017/kppdf
+      # Секреты лучше выносить в .env (см. .env.example)
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      DATA_DIR: /app/data
+    volumes:
+      - ./backend/data:/app/data
     ports:
       - "3000:3000"
-    environment:
-      - MONGO_URI=mongodb://mongodb:27017/kppdf
-      - JWT_SECRET=your_secret_key_here
-    depends_on:
-      - mongodb
 
   frontend:
-    build: ./frontend
-    container_name: kppdf-frontend
-    ports:
-      - "4200:4200"
-    environment:
-      - API_URL=http://localhost:3000
+    build:
+      context: ./frontend
+    container_name: odr-frontend
+    restart: unless-stopped
     depends_on:
       - backend
+    ports:
+      - "4200:80"
+
+volumes:
+  mongo-data:

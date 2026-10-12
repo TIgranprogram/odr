@@ -1,76 +1,124 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { API_URL } from '../../core/api';
+
+interface OdrReport {
+  totalIncome: number;
+  totalExpense: number;
+  net: number;
+  range: { startDate: string; endDate: string };
+}
 
 @Component({
   selector: 'app-odr',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
-    <div class="container">
-      <h1 class="title">Отчет о доходах и расходах (ОДР)</h1>
-      
-      <div class="summary-card">
-        <div class="card-item">
-          <span>Всего Доходов:</span>
-          <span class="income">{{ report.totalIncome | number:'1.2-2' }} ₽</span>
+    <div class="page">
+      <div class="row-between mb-4">
+        <div>
+          <h1 class="page-title">Отчёт о доходах и расходах (ОДР)</h1>
+          <p class="muted">Финансовый результат за выбранный период</p>
         </div>
-        <div class="card-item">
-          <span>Всего Расходов:</span>
-          <span class="expense">{{ report.totalExpense | number:'1.2-2' }} ₽</span>
-        </div>
-        <div class="card-item highlight">
-          <span>Чистая прибыль:</span>
-          <span>{{ report.net | number:'1.2-2' }} ₽</span>
+        <div class="row">
+          <input type="date" [(ngModel)]="start" (change)="fetch()" />
+          <span class="muted">—</span>
+          <input type="date" [(ngModel)]="end" (change)="fetch()" />
+          <button (click)="setPeriod('month')">Текущий месяц</button>
+          <button (click)="setPeriod('quarter')">Квартал</button>
+          <button (click)="setPeriod('year')">Год</button>
         </div>
       </div>
 
-      <div class="details">
-        <p>Период: {{ report.range.startDate | date:'dd.MM.yyyy' }} — {{ report.range.endDate | date:'dd.MM.yyyy' }}</p>
+      <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+
+      <div class="summary-grid mb-4">
+        <div class="card stat">
+          <div class="stat-label">Доходы</div>
+          <div class="stat-value income">{{ report.totalIncome | number:'1.2-2' }} ₽</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-label">Расходы</div>
+          <div class="stat-value expense">{{ report.totalExpense | number:'1.2-2' }} ₽</div>
+        </div>
+        <div class="card stat">
+          <div class="stat-label">Чистая прибыль</div>
+          <div class="stat-value" [class.income]="report.net >= 0" [class.expense]="report.net < 0">
+            {{ report.net | number:'1.2-2' }} ₽
+          </div>
+        </div>
       </div>
+
+      <div class="card">
+        <div class="row-between">
+          <span class="muted">Период</span>
+          <span>
+            {{ report.range.startDate | date:'dd.MM.yyyy' }} — {{ report.range.endDate | date:'dd.MM.yyyy' }}
+          </span>
+        </div>
+      </div>
+
+      <div class="spinner" *ngIf="loading"></div>
     </div>
   `,
   styles: [`
-    .container { padding: 20px; }
-    .title { margin-bottom: 30px; }
-    .summary-card {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 40px;
-      padding: 30px;
-      background: #f9f9f9;
-      border-radius: 12px;
-      border: 1px solid #eee;
-    }
-    .card-item {
-      padding: 20px;
-      border-radius: 8px;
-      background: white;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-    }
-    .card-item span:first-child { font-size: 14px; color: #666; margin-bottom: 10px; }
-    .card-item span:last-child { font-size: 24px; font-weight: bold; }
-    .income span:last-child { color: green; }
-    .expense span:last-child { color: red; }
-    .highlight span:last-child { color: #007bff; }
-    .details { font-size: 14px; color: #888; }
-  `]
+    .page { max-width: 1000px; margin: 0 auto; }
+    .page-title { margin: 0 0 2px; font-size: 22px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .stat { padding: 22px; }
+    .stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); margin-bottom: 8px; }
+    .stat-value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .income { color: var(--success); }
+    .expense { color: var(--danger); }
+    @media (max-width: 700px) { .summary-grid { grid-template-columns: 1fr; } }
+  `],
 })
 export class OdrComponent implements OnInit {
-  report: any = { totalIncome: 0, totalExpense: 0, net: 0, range: { startDate: '', endDate: '' } };
+  report: OdrReport = { totalIncome: 0, totalExpense: 0, net: 0, range: { startDate: '', endDate: '' } };
+  start = '';
+  end = '';
+  loading = false;
+  error = '';
 
   constructor(private http: HttpClient) {}
 
-  ngOnInit() {
-    const start = new Date();
-    const end = new Date();
-    end.setDate(end.getDate() + 30); // Last 30 days default
-
-    this.http.get<any>(`http://localhost:3000/api/odr/summary`).subscribe(data => {
-      this.report = data;
-    });
+  ngOnInit(): void {
+    this.setPeriod('month');
   }
+
+  setPeriod(period: 'month' | 'quarter' | 'year'): void {
+    const now = new Date();
+    const start = new Date(now);
+    if (period === 'month') start.setDate(1);
+    if (period === 'quarter') start.setMonth(Math.floor(now.getMonth() / 3) * 3, 1);
+    if (period === 'year') start.setMonth(0, 1);
+
+    this.start = toIsoDate(start);
+    this.end = toIsoDate(now);
+    this.fetch();
+  }
+
+  fetch(): void {
+    if (!this.start || !this.end) return;
+    this.loading = true;
+    this.error = '';
+    this.http
+      .get<OdrReport>(`${API_URL}/api/odr`, { params: { start: this.start, end: this.end } })
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: data => (this.report = data),
+        error: () => (this.error = 'Не удалось загрузить отчёт'),
+        complete: () => (this.loading = false),
+      });
+  }
+}
+
+function toIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
