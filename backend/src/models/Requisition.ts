@@ -1,5 +1,4 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import * as DictionaryService from '../services/dictionary.service';
 
 /**
  * @interface IRequisition
@@ -47,16 +46,21 @@ export interface IRequisition extends Document {
 
 const RequisitionSchema = new Schema<IRequisition>({
   date: { type: Date, default: Date.now },
-  category: { type: String, required: true },
+  // Фронт пока не присылает category — default, чтобы POST не падал (фронт добавит поле позже)
+  category: { type: String, default: 'Прочее' },
   itemName: { type: String, required: true },
   sku: { type: String },
   unit: { type: String },
   quantity: { type: Number, required: true },
+  // required: контроллер подставляет автора из JWT (фронт requestedBy не отправляет)
   requestedBy: { type: String, required: true },
+  // enum соответствует реальным значениям из CSV (есть «Низко», нет «Низкий»)
   priority: { type: String, enum: ['Срочно', 'Обычный', 'Низко'], default: 'Обычный' },
   status: { type: String, default: '⏳ Ожидает' },
-  company: { type: String, enum: ['СИЮ', 'ССЮ'], required: true },
-  customer: { type: String, required: true },
+  // Фронт не отправляет company — default, чтобы POST не падал
+  company: { type: String, enum: ['СИЮ', 'ССЮ'], default: 'СИЮ' },
+  // Фронт может прислать пустую строку, поэтому не required
+  customer: { type: String, default: '' },
   orderRef: { type: Schema.Types.ObjectId, ref: 'Order' },
   orderItemRef: { type: Schema.Types.ObjectId, ref: 'Order' },
   supplier: { type: String },

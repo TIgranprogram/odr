@@ -1,32 +1,40 @@
-import mongoose, { Document } from 'mongoose';
-import * as DictionaryService from '../services/dictionary.service';
-import { Invoice } from '../models/Invoice';
+import mongoose from 'mongoose';
+import { Invoice, IInvoice } from '../models/Invoice';
 
-class InvoiceService {
-  static async getAll() {
-    return await Invoice.find({}).sort({ invoiceDate: -1 }).exec();
-  }
+export const getAll = async (): Promise<IInvoice[]> => {
+  return await Invoice.find({}).sort({ invoiceDate: -1 }).exec();
+};
 
-  static async create(data: any) {
-    const invoice = new Invoice(data);
-    return await invoice.save();
-  }
+export const create = async (data: Partial<IInvoice>): Promise<IInvoice> => {
+  const invoice = new Invoice(data);
+  return await invoice.save();
+};
 
-  static async findById(id: string) {
-    return await Invoice.findById(id).exec();
-  }
+export const findById = async (id: string): Promise<IInvoice | null> => {
+  return await Invoice.findById(id).exec();
+};
 
-  static async update(id: string, data: any) {
-    return await Invoice.findByIdAndUpdate(id, data, { new: true }).exec();
-  }
+export const update = async (id: string, data: Partial<IInvoice>): Promise<IInvoice | null> => {
+  return await Invoice.findByIdAndUpdate(id, data, { new: true, runValidators: true }).exec();
+};
 
-  static async linkRequisitions(invoiceId: string, requisitionIds: string[]) {
-    // Link multiple requisitions to one invoice
-    const result = await Invoice.findByIdAndUpdate(invoiceId, {
-      $push: { requisitionRefs: { $each: requisitionIds.map(id => new mongoose.Types.ObjectId(id)) } }
-    }, { new: true });
-    return result;
-  }
-}
+/** Возвращает null, если записи нет — контроллер мапит это в 404. */
+export const remove = async (id: string): Promise<IInvoice | null> => {
+  return await Invoice.findByIdAndDelete(id).exec();
+};
 
-export default InvoiceService;
+/** Привязывает несколько заявок к одному счёту. */
+export const linkRequisitions = async (
+  invoiceId: string,
+  requisitionIds: string[]
+): Promise<IInvoice | null> => {
+  return await Invoice.findByIdAndUpdate(
+    invoiceId,
+    {
+      $push: {
+        requisitionRefs: { $each: requisitionIds.map(id => new mongoose.Types.ObjectId(id)) },
+      },
+    },
+    { new: true, runValidators: true }
+  ).exec();
+};

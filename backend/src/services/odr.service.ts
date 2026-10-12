@@ -1,65 +1,43 @@
-import mongoose, { Document } from 'mongoose';
 import { Requisition } from '../models/Requisition';
 import { Invoice } from '../models/Invoice';
-import { Order } from '../models/Order';
 
 /**
- * @interface IOdrReport
- * @property {Date} date
- * @property {number} income
- * @property {number} expense
- * @property {string} category
- * @property {string} customer
- * @property {string} note
+ * Отчёт ОДР считается агрегацией по существующим коллекциям:
+ * доход — сумма оплаченных счетов, расход — сумма заявок, которые уже в работе.
+ * Отдельная модель OdrReport удалена: она нигде не использовалась (и в ней был
+ * неимпортированный Schema).
  */
-export interface IOdrReport extends Document {
-  date: Date;
-  income: number;
-  expense: number;
-  category: string;
-  customer: string;
-  note: string;
+
+export interface OdrReport {
+  totalIncome: number;
+  totalExpense: number;
+  net: number;
+  range: { startDate: Date; endDate: Date };
 }
 
-const OdrReportSchema = new Schema<IOdrReport>({
-  date: { type: Date, default: Date.now },
-  income: { type: Number, default: 0 },
-  expense: { type: Number, default: 0 },
-  category: { type: String },
-  customer: { type: String },
-  note: { type: String },
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+/**
+ * Рассчитывает отчёт за период.
+ * Income: сумма Invoice.totalAmount, где isPaid = true.
+ * Expense: сумма Requisition.priceWithVat, где статус не '⏳ Ожидает'.
+ */
+export const getReport = async (startDate: Date, endDate: Date): Promise<OdrReport> => {
+  const income = await Invoice.aggregate([
+    { $match: { invoiceDate: { $gte: startDate, $lte: endDate }, isPaid: true } },
+    { $group: { _id: null, total: { $sum: '$totalAmount' } } },
+  ]);
 
-export const OdrReport = mongoose.model<IOdrReport>('OdrReport', OdrReportSchema);
+  const expense = await Requisition.aggregate([
+    { $match: { date: { $gte: startDate, $lte: endDate }, status: { $ne: '⏳ Ожидает' } } },
+    { $group: { _id: null, total: { $sum: '$priceWithVat' } } },
+  ]);
 
-class OdrService {
-  /**
-   * Calculates the report for a specific date range.
-   * Income: Sum of Invoice.totalAmount where isPaid = true
-   * Expense: Sum of Requisition.priceWithVat where status != 'Ожидает'
-   */
-  static async getReport(startDate: Date, endDate: Date) {
-    const income = await Invoice.aggregate([
-      { $match: { invoiceDate: { $gte: startDate, $lte: endDate }, isPaid: true } },
-      { $group: { _id: null, total: { $sum: "$totalAmount" } } }
-    ]);
+  const totalIncome = income.length > 0 ? income[0].total : 0;
+  const totalExpense = expense.length > 0 ? expense[0].total : 0;
 
-    const expense = await Requisition.aggregate([
-      { $match: { date: { $gte: startDate, $lte: endDate }, status: { $ne: '⏳ Ожидает' } } },
-      { $group: { _id: null, total: { $sum: "$priceWithVat" } } }
-    ]);
-
-    return {
-      totalIncome: income.length > 0 ? income[0].total : 0,
-      totalExpense: expense.length > 0 ? expense[0].total : 0,
-      net: (income.length > 0 ? income[0].total : 0) - (expense.length > 0 ? expense[0].total : 0),
-      range: { startDate, endDate }
-    };
-  }
-}
-
-export default OdrService;
+  return {
+    totalIncome,
+    totalExpense,
+    net: totalIncome - totalExpense,
+    range: { startDate, endDate },
+  };
+};

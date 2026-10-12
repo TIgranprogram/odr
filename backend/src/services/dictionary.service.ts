@@ -1,31 +1,40 @@
-import mongoose
-from models.Dictionary import Dictionary
-from typing import List
-from bson import ObjectId
+import { Dictionary, IDictionaryItem } from '../models/Dictionary';
 
-class DictionaryService:
-    @staticmethod
-    async def getAll() -> List[any]:
-        return await Dictionary.find({}).exec()
+/**
+ * Справочники. Именованные экспорты — контроллеры подключают сервис
+ * через `import * as DictionaryService`, поэтому default-экспорт не используется.
+ */
 
-    @staticmethod
-    async def getByCategory(category: str) -> List[any]:
-        return await Dictionary.find({"category": category}).exec()
+export const getAll = async (): Promise<IDictionaryItem[]> => {
+  return await Dictionary.find({}).exec();
+};
 
-    @staticmethod
-    async def createItem(name: str, category: str, value: str, meta: dict = None):
-        new_item = Dictionary(
-            name=name,
-            category=category,
-            value=value,
-            meta=meta
-        )
-        return await new_item.save()
+export const getByCategory = async (category: string): Promise<IDictionaryItem[]> => {
+  return await Dictionary.find({ category }).exec();
+};
 
-    @staticmethod
-    async def updateItem(id: str, updates: dict):
-        return await Dictionary.findById(id).update_one({"$set": updates})
+export const getById = async (id: string): Promise<IDictionaryItem | null> => {
+  return await Dictionary.findById(id).exec();
+};
 
-    @staticmethod
-    async def deleteItem(id: str):
-        return await Dictionary.findById(id).delete_one()
+export const createItem = async (
+  name: string,
+  category: string,
+  value: string,
+  meta?: Record<string, unknown>
+): Promise<IDictionaryItem> => {
+  const item = new Dictionary({ name, category, value, meta });
+  return await item.save();
+};
+
+export const updateItem = async (
+  id: string,
+  updates: Partial<Pick<IDictionaryItem, 'name' | 'category' | 'value' | 'isActive'>> & Record<string, unknown>
+): Promise<IDictionaryItem | null> => {
+  return await Dictionary.findByIdAndUpdate(id, updates, { new: true, runValidators: true }).exec();
+};
+
+/** Возвращает null, если записи нет — контроллер мапит это в 404. */
+export const deleteItem = async (id: string): Promise<IDictionaryItem | null> => {
+  return await Dictionary.findByIdAndDelete(id).exec();
+};

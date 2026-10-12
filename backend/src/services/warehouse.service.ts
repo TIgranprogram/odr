@@ -1,24 +1,26 @@
-import mongoose, { Document } from 'mongoose';
-import * as DictionaryService from '../services/dictionary.service';
-import { WarehouseMovement } from '../models/WarehouseMovement';
+import { WarehouseMovement, IWarehouseMovement } from '../models/WarehouseMovement';
 
-class WarehouseService {
-  static async getAll() {
-    return await WarehouseMovement.find({}).sort({ date: -1 }).exec();
-  }
+export const getAll = async (): Promise<IWarehouseMovement[]> => {
+  return await WarehouseMovement.find({}).sort({ date: -1 }).exec();
+};
 
-  static async create(data: any) {
-    const movement = new WarehouseMovement(data);
-    return await movement.save();
-  }
+export const create = async (data: Partial<IWarehouseMovement>): Promise<IWarehouseMovement> => {
+  const movement = new WarehouseMovement(data);
+  return await movement.save();
+};
 
-  static async findById(id: string) {
-    return await WarehouseMovement.findById(id).exec();
-  }
+export const findById = async (id: string): Promise<IWarehouseMovement | null> => {
+  return await WarehouseMovement.findById(id).exec();
+};
 
-  static async update(id: string, data: any) {
-    return await WarehouseMovement.findByIdAndUpdate(id, data, { new: true }).exec();
-  }
-}
+export const update = async (
+  id: string,
+  data: Partial<IWarehouseMovement>
+): Promise<IWarehouseMovement | null> => {
+  return await WarehouseMovement.findByIdAndUpdate(id, data, { new: true, runValidators: true }).exec();
+};
 
-export default WarehouseService;
+/** Возвращает null, если записи нет — контроллер мапит это в 404. */
+export const remove = async (id: string): Promise<IWarehouseMovement | null> => {
+  return await WarehouseMovement.findByIdAndDelete(id).exec();
+};

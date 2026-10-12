@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2021"],
+    // rootDir "." + outDir "dist": dist/src/** и dist/scripts/**, .js НЕ рядом с .ts
+    "rootDir": ".",
+    "outDir": "dist",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["src/**/*", "scripts/**/*"],
+  "exclude": ["node_modules", "dist"],
+  // ts-node по умолчанию не загружает include/файлы-декларации — а src/types/express.d.ts
+  // расширяет Express.Request (req.user). Без files:true dev/seed падают с TS2339.
+  "ts-node": {
+    "files": true
+  }
+}
