@@ -1,0 +1,31 @@
+{
+  "name": "kppdf-frontend",
+  "version": "0.1.0",
+  "description": "Frontend for kppdf supply automation system",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve --port 4200",
+    "build": "ng build",
+    "test": "ng test"
+  },
+  "dependencies": {
+    "@angular/animations": "^17.0.0",
+    "@angular/common": "^17.0.0",
+    "@angular/core": "^17.0.0",
+    "@angular/forms": "^17.0.0",
+    "@angular/router": "^17.0.0",
+    "@angular/common/http": "^17.0.0",
+    "rxjs": "^7.8.0",
+    "ts-slim": "^0.0.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^17.0.0",
+    "@angular/cli": "^17.0.0",
+    "@angular/compiler": "^17.0.0",
+    "@angular/compiler-cli": "^17.0.0",
+    "@angular/core-compiler": "^17.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  }
+}
