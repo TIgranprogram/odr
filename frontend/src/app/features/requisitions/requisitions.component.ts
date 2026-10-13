@@ -1,27 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { inject, DestroyRef } from '@angular/core';
-import { API_URL } from '../../core/api';
+import { RequisitionService } from '../../core/services/requisition.service';
+import { DictionaryService } from '../../core/services/dictionary.service';
+import { ToastService } from '../../core/services/toast.service';
 import { STATUSES, PRIORITIES } from '../../core/constants';
-
-interface Requisition {
-  _id?: string;
-  category: string;
-  itemName: string;
-  quantity: number;
-  unit: string;
-  supplier: string;
-  customer: string;
-  company: string;
-  priority: string;
-  status: string;
-  priceWithVat: number;
-  date?: string;
-  requestedBy?: string;
-}
+import { Requisition } from '../../core/models';
 
 @Component({
   selector: 'app-requisitions',
@@ -38,7 +23,6 @@ interface Requisition {
       </div>
 
       <div class="alert alert-error" *ngIf="error">{{ error }}</div>
-      <div class="alert alert-success" *ngIf="notice">{{ notice }}</div>
 
       <div class="card mb-4">
         <div class="filters">
@@ -47,13 +31,13 @@ interface Requisition {
             type="text"
             placeholder="Поиск по наименованию, артикулу, поставщику…"
             [(ngModel)]="filters.search"
-            (input)="fetch()"
+            (input)="onFilterChange()"
           />
-          <select [(ngModel)]="filters.status" (change)="fetch()">
+          <select [(ngModel)]="filters.status" (change)="onFilterChange()">
             <option value="">Все статусы</option>
             <option *ngFor="let s of statuses" [value]="s">{{ s }}</option>
           </select>
-          <select [(ngModel)]="filters.customer" (change)="fetch()">
+          <select [(ngModel)]="filters.customer" (change)="onFilterChange()">
             <option value="">Все заказчики</option>
             <option *ngFor="let c of customers" [value]="c">{{ c }}</option>
           </select>
@@ -87,8 +71,8 @@ interface Requisition {
               <td><span class="badge" [class]="statusClass(item.status)">{{ item.status }}</span></td>
               <td class="num">{{ item.priceWithVat * item.quantity | number:'1.2-2' }} ₽</td>
               <td>
-                <button class="btn-ghost" title="Редактировать" (click)="openEdit(item)">✏️</button>
-                <button class="btn-ghost" title="Удалить" (click)="remove(item)">🗑️</button>
+                <button class="btn-ghost" title="Редактировать" aria-label="Редактировать заявку" (click)="openEdit(item)">✏️</button>
+                <button class="btn-ghost" title="Удалить" aria-label="Удалить заявку" (click)="remove(item)">🗑️</button>
               </td>
             </tr>
           </tbody>
@@ -99,6 +83,15 @@ interface Requisition {
         </div>
       </div>
 
+      <div class="pager" *ngIf="total > 0">
+        <span class="muted">Всего: {{ total }}</span>
+        <div class="row">
+          <button (click)="goToPage(page - 1)" [disabled]="page <= 1">← Назад</button>
+          <span class="muted">Стр. {{ page }} из {{ totalPages }}</span>
+          <button (click)="goToPage(page + 1)" [disabled]="page >= totalPages">Вперёд →</button>
+        </div>
+      </div>
+
       <div class="spinner" *ngIf="loading"></div>
 
       <!-- Модальное окно создания / редактирования -->
@@ -106,7 +99,7 @@ interface Requisition {
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="row-between mb-4">
             <h2 class="modal-title">{{ editingId ? 'Редактировать заявку' : 'Новая заявка' }}</h2>
-            <button class="btn-ghost" (click)="closeForm()">✕</button>
+            <button class="btn-ghost" aria-label="Закрыть" (click)="closeForm()">✕</button>
           </div>
 
           <form (ngSubmit)="save()">
@@ -190,6 +183,7 @@ interface Requisition {
     .filters { display: flex; gap: 10px; }
     .filters input { max-width: 340px; }
     .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
+    .pager { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; gap: 10px; flex-wrap: wrap; }
     .modal-backdrop {
       position: fixed; inset: 0; background: rgba(15,23,42,.5);
       display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
@@ -211,7 +205,6 @@ export class RequisitionsComponent implements OnInit {
   loading = false;
   saving = false;
   error = '';
-  notice = '';
 
   categories: string[] = [];
   units: string[] = [];
@@ -221,41 +214,71 @@ export class RequisitionsComponent implements OnInit {
   readonly priorities = PRIORITIES;
 
   filters = { search: '', status: '', customer: '' };
+  page = 1;
+  readonly limit = 25;
+  total = 0;
 
   showForm = false;
   editingId = '';
   form: Requisition = emptyRequisition();
 
-  constructor(private http: HttpClient) {}
-
   private readonly destroyRef = inject(DestroyRef);
+  private searchDebounce?: ReturnType<typeof setTimeout>;
+
+  constructor(
+    private readonly requisitionService: RequisitionService,
+    private readonly dictionaryService: DictionaryService,
+    private readonly toast: ToastService,
+  ) {}
+
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.total / this.limit));
+  }
 
   ngOnInit(): void {
     this.fetch();
     this.fetchDictionaries();
   }
 
+  onFilterChange(): void {
+    if (this.searchDebounce) clearTimeout(this.searchDebounce);
+    this.searchDebounce = setTimeout(() => {
+      this.page = 1;
+      this.fetch();
+    }, 300);
+  }
+
   fetch(): void {
     this.loading = true;
     this.error = '';
-    let params = new HttpParams();
-    if (this.filters.search) params = params.set('search', this.filters.search);
-    if (this.filters.status) params = params.set('status', this.filters.status);
-    if (this.filters.customer) params = params.set('customer', this.filters.customer);
-
-    this.http
-      .get<Requisition[]>(`${API_URL}/api/requisitions`, { params })
+    this.requisitionService
+      .listPaged({
+        search: this.filters.search,
+        status: this.filters.status,
+        customer: this.filters.customer,
+        page: this.page,
+        limit: this.limit,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: data => (this.items = data),
+        next: result => {
+          this.items = result.items;
+          this.total = result.total;
+        },
         error: () => (this.error = 'Не удалось загрузить заявки'),
         complete: () => (this.loading = false),
       });
   }
 
+  goToPage(page: number): void {
+    if (page < 1 || page > this.totalPages) return;
+    this.page = page;
+    this.fetch();
+  }
+
   private fetchDictionaries(): void {
-    this.http
-      .get<{ category: string; name: string; value: string }[]>(`${API_URL}/api/dictionaries`)
+    this.dictionaryService
+      .list()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: all => {
@@ -288,36 +311,40 @@ export class RequisitionsComponent implements OnInit {
     this.error = '';
     const payload = { ...this.form };
     const request = this.editingId
-      ? this.http.put<Requisition>(`${API_URL}/api/requisitions/${this.editingId}`, payload)
-      : this.http.post<Requisition>(`${API_URL}/api/requisitions`, payload);
+      ? this.requisitionService.update(this.editingId, payload)
+      : this.requisitionService.create(payload);
 
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving = false;
         this.showForm = false;
-        this.notice = this.editingId ? 'Заявка обновлена' : 'Заявка создана';
-        setTimeout(() => (this.notice = ''), 3000);
+        this.toast.success(this.editingId ? 'Заявка обновлена' : 'Заявка создана');
         this.fetch();
       },
       error: err => {
         this.saving = false;
-        this.error = err?.error?.error || 'Ошибка сохранения';
+        const message = err?.error?.error || 'Ошибка сохранения';
+        this.error = message;
+        this.toast.error(message);
       },
     });
   }
 
   remove(item: Requisition): void {
     if (!confirm(`Удалить заявку «${item.itemName}»?`)) return;
-    this.http
-      .delete(`${API_URL}/api/requisitions/${item._id}`)
+    this.requisitionService
+      .remove(item._id ?? '')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.items = this.items.filter(i => i._id !== item._id);
-          this.notice = 'Заявка удалена';
-          setTimeout(() => (this.notice = ''), 3000);
+          this.toast.success('Заявка удалена');
+          this.fetch();
         },
-        error: err => (this.error = err?.error?.error || 'Ошибка удаления'),
+        error: err => {
+          const message = err?.error?.error || 'Ошибка удаления';
+          this.error = message;
+          this.toast.error(message);
+        },
       });
   }
 

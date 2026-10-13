@@ -4,6 +4,7 @@ import * as RequisitionController from '../controllers/requisition.controller';
 const router = Router();
 
 router.get('/', RequisitionController.getAll);
+router.get('/paged', RequisitionController.getPaged);
 router.post('/', RequisitionController.create);
 router.get('/:id', RequisitionController.findById);
 router.put('/:id', RequisitionController.update);

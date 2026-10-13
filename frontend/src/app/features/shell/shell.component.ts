@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { ToastComponent } from './toast.component';
 
 interface NavItem {
   path: string;
@@ -16,7 +17,7 @@ interface NavItem {
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, ToastComponent],
   template: `
     <div class="shell">
       <aside class="sidebar">
@@ -66,6 +67,8 @@ interface NavItem {
           <router-outlet></router-outlet>
         </main>
       </div>
+
+      <app-toast></app-toast>
     </div>
   `,
   styles: [`
@@ -150,6 +153,7 @@ export class ShellComponent {
     { path: '/orders', label: 'Заказы', icon: '🧾' },
     { path: '/invoices', label: 'Счета', icon: '💳' },
     { path: '/warehouse', label: 'Склад', icon: '🏬' },
+    { path: '/catalog', label: 'Каталог', icon: '🗂️' },
     { path: '/dictionaries', label: 'Справочники', icon: '📚' },
   ];
 

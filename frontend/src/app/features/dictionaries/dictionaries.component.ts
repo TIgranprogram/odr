@@ -1,19 +1,11 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { inject, DestroyRef } from '@angular/core';
-import { API_URL } from '../../core/api';
-import { DICTIONARY_CATEGORIES } from '../../core/constants';
-
-interface DictionaryItem {
-  _id?: string;
-  category: string;
-  name: string;
-  value: string;
-  isActive?: boolean;
-}
+import { DictionaryService } from '../../core/services/dictionary.service';
+import { ToastService } from '../../core/services/toast.service';
+import { DICTIONARY_CATEGORIES, DICTIONARY_LABELS } from '../../core/constants';
+import { DictionaryItem } from '../../core/models';
 
 @Component({
   selector: 'app-dictionaries',
@@ -29,7 +21,6 @@ interface DictionaryItem {
       </div>
 
       <div class="alert alert-error" *ngIf="error">{{ error }}</div>
-      <div class="alert alert-success" *ngIf="notice">{{ notice }}</div>
 
       <div class="card mb-4">
         <div class="filters">
@@ -56,8 +47,8 @@ interface DictionaryItem {
               <td>{{ item.name }}</td>
               <td class="muted">{{ item.value }}</td>
               <td class="text-right">
-                <button class="btn-ghost" title="Редактировать" (click)="startEdit(item)">✏️</button>
-                <button class="btn-ghost" title="Удалить" (click)="remove(item)">🗑️</button>
+                <button class="btn-ghost" title="Редактировать" aria-label="Редактировать запись" (click)="startEdit(item)">✏️</button>
+                <button class="btn-ghost" title="Удалить" aria-label="Удалить запись" (click)="remove(item)">🗑️</button>
               </td>
             </tr>
           </tbody>
@@ -115,14 +106,16 @@ export class DictionariesComponent implements OnInit {
   loading = false;
   saving = false;
   error = '';
-  notice = '';
 
   editingId = '';
   form: DictionaryItem = { category: 'Types', name: '', value: '' };
 
-  constructor(private http: HttpClient) {}
-
   private readonly destroyRef = inject(DestroyRef);
+
+  constructor(
+    private readonly dictionaryService: DictionaryService,
+    private readonly toast: ToastService,
+  ) {}
 
   ngOnInit(): void {
     this.fetch();
@@ -131,12 +124,8 @@ export class DictionariesComponent implements OnInit {
   fetch(): void {
     this.loading = true;
     this.error = '';
-    const url = this.selectedCategory
-      ? `${API_URL}/api/dictionaries/${encodeURIComponent(this.selectedCategory)}`
-      : `${API_URL}/api/dictionaries`;
-
-    this.http
-      .get<DictionaryItem[]>(url)
+    this.dictionaryService
+      .list(this.selectedCategory || undefined)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.items = data),
@@ -159,46 +148,44 @@ export class DictionariesComponent implements OnInit {
     this.saving = true;
     this.error = '';
     const request = this.editingId
-      ? this.http.put<DictionaryItem>(`${API_URL}/api/dictionaries/${this.editingId}`, this.form)
-      : this.http.post<DictionaryItem>(`${API_URL}/api/dictionaries`, this.form);
+      ? this.dictionaryService.update(this.editingId, this.form)
+      : this.dictionaryService.create(this.form);
 
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving = false;
-        this.notice = this.editingId ? 'Запись обновлена' : 'Запись добавлена';
-        setTimeout(() => (this.notice = ''), 3000);
+        this.toast.success(this.editingId ? 'Запись обновлена' : 'Запись добавлена');
         this.resetForm();
         this.fetch();
       },
       error: err => {
         this.saving = false;
-        this.error = err?.error?.error || 'Ошибка сохранения';
+        const message = err?.error?.error || 'Ошибка сохранения';
+        this.error = message;
+        this.toast.error(message);
       },
     });
   }
 
   remove(item: DictionaryItem): void {
     if (!confirm(`Удалить «${item.name}»?`)) return;
-    this.http
-      .delete(`${API_URL}/api/dictionaries/${item._id}`)
+    this.dictionaryService
+      .remove(item._id ?? '')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.items = this.items.filter(i => i._id !== item._id);
-          this.notice = 'Запись удалена';
-          setTimeout(() => (this.notice = ''), 3000);
+          this.toast.success('Запись удалена');
         },
-        error: err => (this.error = err?.error?.error || 'Ошибка удаления'),
+        error: err => {
+          const message = err?.error?.error || 'Ошибка удаления';
+          this.error = message;
+          this.toast.error(message);
+        },
       });
   }
 
   categoryLabel(category: string): string {
-    const labels: Record<string, string> = {
-      Types: 'Типы товаров',
-      Units: 'Единицы измерения',
-      Suppliers: 'Поставщики',
-      Customers: 'Заказчики',
-    };
-    return labels[category] ?? category;
+    return DICTIONARY_LABELS[category] ?? category;
   }
 }

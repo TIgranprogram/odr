@@ -15,25 +15,46 @@ services:
       timeout: 5s
       retries: 10
 
+  # Одноразовый сервис наполнения БД (идемпотентный seed: справочники,
+  # заявки, склад + dev-админ admin/admin123). Завершается с кодом 0.
+  seed:
+    build:
+      context: ./backend
+    image: odr-backend:local
+    container_name: odr-seed
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongodb:27017/kppdf
+      SEED_DATA_DIR: /data/seed
+    volumes:
+      # CSV-выгрузки лежат в подпапке data/ (только чтение)
+      - "./данные для заполнения на сайте/data:/data/seed:ro"
+    command: ["node", "dist/scripts/seed.js"]
+
   backend:
     build:
       context: ./backend
+    image: odr-backend:local
     container_name: odr-backend
     restart: unless-stopped
     depends_on:
       mongodb:
         condition: service_healthy
+      # API стартует только после успешного наполнения БД
+      seed:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: "3000"
       MONGO_URI: mongodb://mongodb:27017/kppdf
       # Секреты лучше выносить в .env (см. .env.example)
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
-      # Путь к CSV-выгрузкам для seed-скрипта
-      SEED_DATA_DIR: /data/seed
-    volumes:
-      # Выгрузки для первичного наполнения (только чтение)
-      - "./данные для заполнения на сайте:/data/seed:ro"
+      REFRESH_SECRET: ${REFRESH_SECRET:-change_me_refresh_in_production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4200}
     ports:
       - "3000:3000"
 

@@ -35,4 +35,11 @@ export const env = {
   port: Number(process.env.PORT || 3000),
   mongoUri: process.env.MONGO_URI || 'mongodb://localhost:27017/kppdf',
   jwtSecret: process.env.JWT_SECRET || 'your_secret_key_here_change_me_in_prod',
+  // Отдельный секрет для refresh-токенов: access и refresh не взаимозаменяемы.
+  refreshSecret: process.env.REFRESH_SECRET || process.env.JWT_SECRET || 'your_refresh_secret_change_me_in_prod',
+  // Белый список origin для CORS (через запятую). Пусто → разрешаем только same-origin/без Origin.
+  corsOrigins: (process.env.CORS_ORIGINS || 'http://localhost:4200,http://localhost:3000')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean),
 };

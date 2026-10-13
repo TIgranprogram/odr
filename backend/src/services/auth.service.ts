@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
 
 const JWT_SECRET = env.jwtSecret;
+const REFRESH_SECRET = env.refreshSecret;
 
 interface TokenUser {
   _id?: unknown;
@@ -28,8 +29,9 @@ export const generateAccessToken = (user: TokenUser): string => {
 };
 
 /**
- * Refresh-токен отличается от access-токена маркером `type: 'refresh'` —
- * authMiddleware не пускает ими в API (иначе 7-дневный токен работал бы как access).
+ * Refresh-токен отличается от access-токена маркером `type: 'refresh'` И подписан
+ * отдельным REFRESH_SECRET — поэтому access-токен не пройдёт verifyRefreshToken,
+ * а refresh не пройдёт authMiddleware.
  */
 export const generateRefreshToken = (user: TokenUser): string => {
   const payload = {
@@ -38,14 +40,19 @@ export const generateRefreshToken = (user: TokenUser): string => {
     type: 'refresh',
   };
   const options: SignOptions = { expiresIn: '7d' };
-  return jwt.sign(payload, JWT_SECRET, options);
+  return jwt.sign(payload, REFRESH_SECRET, options);
 };
 
 export const verifyPassword = async (password: string, hash: string): Promise<boolean> => {
   return await bcrypt.compare(password, hash);
 };
 
-/** Проверка JWT. Бросает исключение при невалидном/просроченном токене. */
+/** Проверка access-JWT. Бросает исключение при невалидном/просроченном токене. */
 export const verifyToken = (token: string): string | jwt.JwtPayload => {
   return jwt.verify(token, JWT_SECRET);
+};
+
+/** Проверка refresh-JWT. Бросает исключение при невалидном/просроченном токене. */
+export const verifyRefreshToken = (token: string): jwt.JwtPayload | string => {
+  return jwt.verify(token, REFRESH_SECRET);
 };

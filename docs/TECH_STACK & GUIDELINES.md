@@ -1,12 +1,13 @@
 # TECH_STACK & GUIDELINES (Технический паспорт)
 
 ## 🛠 Технологический стек
-- **Frontend**: Angular 17+ (Standalone Components, Signals, Reactive Forms).
-- **UI Library**: Angular Material / PrimeNG (выбрать на этапе инициализации).
+- **Frontend**: Angular 17+ (Standalone Components, Signals, Reactive/Template-driven Forms).
+- **UI Library**: без стороннего UI-кита — собственный целостный набор стилей.
 - **Backend**: Node.js + Express.js + TypeScript + Mongoose.
 - **Database**: MongoDB 7+.
 - **Auth**: JWT (Access 15m + Refresh 7d) + Bcryptjs.
-- **Styling**: TailwindCSS + SCSS.
+- **Styling**: чистый CSS (`frontend/src/styles.css`); UI-кит (PrimeNG/Material) и Tailwind
+  не подключены — решение зафиксировано 13.10.2026 (см. T-4.7).
 
 ## 📐 Архитектурные правила (Backend)
 1. **Layered Architecture**:
@@ -14,13 +15,14 @@
    - `controllers`: Парсинг запроса, валидация DTO, отправка ответа.
    - `services`: **Основная бизнес-логика**. Запросы к БД только через сервисы.
    - `models`: Mongoose схемы.
-2. **Validation**: Использовать `class-validator` для всех входных данных (DTO).
+2. **Validation**: Входные данные (DTO) валидируются вручную через `backend/src/utils/validate.ts`
+   (без `class-validator`/`reflect-metadata` — осознанное упрощение).
 3. **Error Handling**: Глобальный Middleware для обработки ошибок (Standard Error Response).
 4. **Audit**: Все операции изменения данных должны логироваться (кто, когда, что изменил).
 
 ## 📐 Архитектурные правила (Frontend)
 1. **Component Architecture**:
-   - `core`: Си хочет-тоны (AuthService, ApiService, Guards).
+   - `core`: сервисы, модели и инфраструктура (AuthService, feature-сервисы, Guards, Signals).
    - `shared`: Переиспользуемые UI компоненты (Button, Input, Modal).
    - `features`: Модули по функционалу (requisitions, invoices, reports).
 2. **State Management**: Использовать **Angular Signals** для реактивного состояния страниц.

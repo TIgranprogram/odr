@@ -1,6 +1,2 @@
-/**
- * Единая точка настройки адреса API.
- * В проде можно переопределить через файл environments/environment.prod.ts
- * или через переменную сборки (поэтому строка одна, а не размазана по компонентам).
- */
-export const API_URL = 'http://localhost:3000';
+import { environment } from '../../environments/environment';
+export const API_URL = environment.apiUrl;

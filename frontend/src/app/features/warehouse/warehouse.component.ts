@@ -1,31 +1,29 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { inject, DestroyRef } from '@angular/core';
-import { API_URL } from '../../core/api';
+import { WarehouseService } from '../../core/services/warehouse.service';
+import { ToastService } from '../../core/services/toast.service';
+import { Movement, StockItem } from '../../core/models';
 
-interface StockItem {
-  _id?: string;
-  name: string;
-  category: string;
-  unit: string;
-  currentStock: number;
-  freeStock: number;
-  minStock: number;
-  status: string;
-}
-
-interface Movement {
-  _id?: string;
+interface MovementForm {
   date: string;
   type: 'INCOME' | 'OUTCOME';
   itemName: string;
-  quantity: number;
+  quantity: number | null;
   unit: string;
   note: string;
 }
+
+const emptyMovement = (): MovementForm => ({
+  date: new Date().toISOString().slice(0, 10),
+  type: 'INCOME',
+  itemName: '',
+  quantity: null,
+  unit: 'шт',
+  note: '',
+});
 
 @Component({
   selector: 'app-warehouse',
@@ -86,7 +84,10 @@ interface Movement {
         </div>
       </div>
 
-      <h2 class="section-title mb-2">Журнал движений</h2>
+      <div class="row-between mb-2">
+        <h2 class="section-title">Журнал движений</h2>
+        <button class="btn-primary" (click)="openMovement()">＋ Движение</button>
+      </div>
       <div class="table-wrap">
         <table class="data">
           <thead>
@@ -114,16 +115,75 @@ interface Movement {
         </table>
         <div class="empty" *ngIf="!loadingMovements && movements.length === 0">
           <div class="empty-title">Движений нет</div>
+          <div>Добавьте первое движение кнопкой выше</div>
         </div>
       </div>
 
       <div class="spinner" *ngIf="loading || loadingMovements"></div>
+
+      <div class="modal-backdrop" *ngIf="showForm" (click)="closeForm()">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="row-between mb-4">
+            <h2 class="modal-title">Новое движение</h2>
+            <button class="btn-ghost" aria-label="Закрыть" (click)="closeForm()">✕</button>
+          </div>
+          <form (ngSubmit)="saveMovement()">
+            <div class="grid">
+              <div class="field">
+                <label>Тип *</label>
+                <select [(ngModel)]="form.type" name="type" required>
+                  <option value="INCOME">➕ Приход</option>
+                  <option value="OUTCOME">➖ Расход</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Дата</label>
+                <input [(ngModel)]="form.date" name="date" type="date" />
+              </div>
+              <div class="field">
+                <label>Наименование *</label>
+                <input [(ngModel)]="form.itemName" name="itemName" list="stockNames" required />
+                <datalist id="stockNames">
+                  <option *ngFor="let i of items" [value]="i.name"></option>
+                </datalist>
+              </div>
+              <div class="field">
+                <label>Количество *</label>
+                <input [(ngModel)]="form.quantity" name="quantity" type="number" min="0" step="0.01" required />
+              </div>
+              <div class="field">
+                <label>Ед. изм.</label>
+                <input [(ngModel)]="form.unit" name="unit" />
+              </div>
+              <div class="field">
+                <label>Примечание</label>
+                <input [(ngModel)]="form.note" name="note" />
+              </div>
+            </div>
+            <div class="row mt-2">
+              <button type="submit" class="btn-primary" [disabled]="saving">{{ saving ? 'Сохранение…' : 'Сохранить' }}</button>
+              <button type="button" (click)="closeForm()">Отмена</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
     .page { max-width: 1100px; margin: 0 auto; }
     .page-title { margin: 0 0 2px; font-size: 22px; }
     .section-title { margin: 0; font-size: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 18px; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15,23,42,.5);
+      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
+    }
+    .modal {
+      background: #fff; border-radius: 12px; padding: 24px;
+      width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto;
+    }
+    .modal-title { margin: 0; font-size: 18px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
   `],
 })
 export class WarehouseComponent implements OnInit {
@@ -134,11 +194,18 @@ export class WarehouseComponent implements OnInit {
   onlyCritical = false;
   loading = false;
   loadingMovements = false;
+  saving = false;
   error = '';
 
-  constructor(private http: HttpClient) {}
+  showForm = false;
+  form: MovementForm = emptyMovement();
 
   private readonly destroyRef = inject(DestroyRef);
+
+  constructor(
+    private readonly warehouseService: WarehouseService,
+    private readonly toast: ToastService,
+  ) {}
 
   ngOnInit(): void {
     this.fetchStock();
@@ -147,8 +214,8 @@ export class WarehouseComponent implements OnInit {
 
   fetchStock(): void {
     this.loading = true;
-    this.http
-      .get<StockItem[]>(`${API_URL}/api/stockItems`)
+    this.warehouseService
+      .stockItems()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => {
@@ -162,8 +229,8 @@ export class WarehouseComponent implements OnInit {
 
   fetchMovements(): void {
     this.loadingMovements = true;
-    this.http
-      .get<Movement[]>(`${API_URL}/api/warehouse`)
+    this.warehouseService
+      .movements()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.movements = data),
@@ -178,6 +245,48 @@ export class WarehouseComponent implements OnInit {
       const matchesCritical = !this.onlyCritical || item.currentStock <= item.minStock;
       return matchesSearch && matchesCritical;
     });
+  }
+
+  openMovement(): void {
+    this.form = emptyMovement();
+    this.showForm = true;
+  }
+
+  closeForm(): void {
+    this.showForm = false;
+  }
+
+  saveMovement(): void {
+    if (this.form.quantity === null || this.form.quantity === undefined) {
+      this.error = 'Укажите количество';
+      return;
+    }
+    this.saving = true;
+    this.error = '';
+    this.warehouseService
+      .createMovement({
+        date: this.form.date,
+        type: this.form.type,
+        itemName: this.form.itemName,
+        quantity: Number(this.form.quantity),
+        unit: this.form.unit,
+        note: this.form.note,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.saving = false;
+          this.showForm = false;
+          this.toast.success('Движение добавлено');
+          this.fetchMovements();
+        },
+        error: err => {
+          this.saving = false;
+          const message = err?.error?.error || 'Ошибка сохранения движения';
+          this.error = message;
+          this.toast.error(message);
+        },
+      });
   }
 
   stockClass(item: StockItem): string {

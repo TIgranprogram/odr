@@ -4,54 +4,61 @@
 > чтобы продолжить работу даже при потере контекста.
 
 ## 📍 Текущий статус
-**Этап:** Полный аудит кода завершён, начата починка до рабочего состояния.
+**Этап:** Инфраструктура и ядро подняты; актуален аудит от 13.10.2026.
 **Дата:** 13.10.2026
 **Ветка:** `main` → `origin/main` (GitHub: `TIgranprogram/odr`, приватность: public)
 
 ## 🔄 Последнее действие
 1. Настроен SSH-доступ к GitHub (ключ `~/.ssh/odr_github`, аккаунт `TIgranprogram`).
-2. Создан `.gitignore`, `.env` исключён из индекса, выполнен первый коммит и push.
-3. Проведён **полный аудит** двух независимых обходов (backend + frontend).
-4. Восстановлена инфраструктура сборки frontend (её не существовало).
-5. Результаты аудита сведены в **`docs/tasks/TECH_TASKS.md`**.
+2. `.gitignore` создан, `.env` исключён из коммитов.
+3. Проведён **повторный аудит** с фактическими сборками (см. AGENT_TASKS §0).
+4. Оставшиеся работы сведены в **`docs/tasks/AGENT_TASKS.md`** (актуальное ТЗ).
 
 ## ⏭️ Следующие шаги
-1. Починить компиляцию backend — 7 блокеров (`TECH_TASKS.md` §2).
-2. Починить seed: парсинг CSV + создание админа (`§5`).
-3. Реализовать рабочие страницы frontend (`§3`).
-4. Подключить auth middleware, Dockerfile, docker-compose end-to-end (`§1`, `§4`).
-5. Сверить бизнес-логику ОДР с `ODR_LOGIC.md` (`§7`).
-6. Тесты, линтеры, документация (`§8`).
+1. 🟠 Апгрейд Angular (frontend-prod, 7 уязвимостей в `@angular/core`) — запланирован отдельной задачей.
+2. ⚪ Остаточный техдолг P3 (отложено): tenant isolation, snapshot, audit-log, оптимизация Mongo (T-6.1/6.2/6.3/6.6).
 
-## 🚨 Ключевые проблемы из аудита (блокеры)
+## 🚨 Статус проблем (перепроверено 13.10.2026)
 
-**Backend не компилируется:**
-- `server.ts:10` импортирует несуществующий `routes/orders.ts` → `MODULE_NOT_FOUND`
-- `services/dictionary.service.ts` **написан на Python-псевдокоде**
-- нет `hashPassword` в `auth.service` (вызывается контроллером)
-- нет `tsconfig.json`, нет `@types/*`
-- контроллеры: `import * as Service` поверх `export default` → `undefined`
-- `dotenv.config()` не вызывается → `JWT_SECRET` всегда дефолтный
+> Полный список задач — **`docs/tasks/AGENT_TASKS.md`**.
 
-**Безопасность:**
-- `authMiddleware` не подключён ни к одному роуту → API открыт всем
-- `register` принимает `role` из тела запроса → любой может стать ADMIN
-- refresh-токен неотличим от access
+**✅ Закрыто (проверено фактической сборкой):**
+- Backend компилируется: `npx tsc --noEmit` → 0; `npm run build` → `dist/`.
+- Frontend собирается: `npm run build` → 10 lazy-чанков.
+- `authMiddleware` подключён на `/api/*` (кроме `/auth`); `register` всегда `USER`;
+  `isActive` проверяется; refresh-токен помечен `type:'refresh'`.
+- Глобальный error-handler + 404 + маппинг CastError/ValidationError/дубль.
+- Seed: парсер CSV (шапка, `dd.mm.yyyy`, `5 760,00 ₽`), идемпотентность, `admin/admin123`.
+- Dockerfile × 2 + `docker-compose.yml`; DELETE-роуты; `runValidators`.
+- **Волна 1 (P0), проверено end-to-end в Docker (13.10.2026):**
+  - **T-1.1** ОДР: расход = `priceWithVat × quantity`, статусы `['✅ Заказать','💰 Оплачено','☑️ Получено']`,
+    исключён двойной учёт по `invoiceRef`.
+  - **T-1.2** ОДР: модель `AdditionalIncome` + CRUD `/api/additional-incomes`; сумма входит в `totalIncome`;
+    UI на `/reports/odr` (таблица за период + форма добавить/править/удалить). Проверено через nginx: доход 0→5555→0.
+  - **T-1.3** Prod API-URL: `environment.ts` (`http://localhost:3000`) / `environment.prod.ts` (`''`) + `fileReplacements`.
+  - **T-1.4** Docker: one-shot сервис `seed` (depends_on mongodb healthy); API стартует после `service_completed_successfully`.
+    Смонтирована папка `данные для заполнения на сайте/data` → `/data/seed`.
 
-**Frontend (частично исправлено):**
-- не существовало: `angular.json`, `tsconfig`, `main.ts`, `index.html`,
-  корневой компонент, layout, маршруты `orders`, guard'ы, JWT-interceptor
-- осталось: страницы с замоканными/недоделанными формами, заглушка склада,
-  отсутствие обработки ошибок, `class_table` вместо `class="table_table"`
+**❌ Осталось (главное):**
+- ⚪ **Технический долг (P3, отложено):** нет tenant isolation (`organizationId`), snapshot-снимков,
+  audit-log, оптимизации Mongo-запросов (T-6.1/6.2/6.3/6.6). Реализованы Swagger/OpenAPI (T-6.4)
+  и `docs/pages/*.page.md` (T-6.5).
+- 🟠 **`npm audit`:** production-backend — 0 уязвимостей; frontend-prod — 7 в `@angular/core`
+  (требует мажорного апгрейда Angular). Dev-транзитивные предупреждения (`--force` не применялся
+  во избежание поломки сборки). **Запланирована отдельная задача: поэтапный `ng update`.**
 
-**Данные:**
-- seed падает: даты `dd.mm.yyyy`, цены `5 760,00 ₽`, `invoiceRef` не ObjectId
-- складской CSV имеет 5 строк-баннеров → 0 позиций импортируется молча
-- **пользователи не создаются → залогиниться невозможно**
-
-**Бизнес-логика ОДР:**
-- расход считается без `quantity` → сумма занижена в разы
-- заявки с `invoiceRef` считаются вместе со счетами → двойной учёт
+**✅ Волны 2–5 и 7 — закрыты и проверены (13.10.2026):**
+- **Безопасность (T-2.x):** `/auth/refresh` + refresh-интерцептор; публичная регистрация закрыта,
+  `/api/users` CRUD только ADMIN + защита последнего админа; CORS-whitelist, rate-limit на `/login`
+  (10/15 мин), маппинг `ValidationError→400`/CORS→`403`; DTO-валидация через `utils/validate.ts`.
+- **Данные (T-3.x):** каталог продуктов из `products.csv` — 288 позиций (`/api/products`, UI `/catalog`);
+  seed: единый `resolveDataDir()` + `assertFileExists()` fail-fast; категории из CSV → `Types` (11).
+- **Frontend (T-4.x):** сервисный слой (`core/services/*`) + общие модели (`core/models`), тосты
+  (ToastService + компонент, 401→forceLogout, 403/сессия — уведомления), пагинация заявок
+  (`GET /api/requisitions/paged`), формы заказов/движений склада, `aria-label` на иконочных кнопках.
+- **Инфра/тесты (T-5.x):** ESLint+Prettier в обоих проектах (`npm run lint` — 0); Jest smoke-тесты
+  (`npm test` — 7/7); `/health` → 503 при недоступной БД; GitHub Actions CI; prod-`environment` + fileReplacements.
+- **Документация (T-7.x):** устранены противоречия в README / TODO_CHECKLIST / ROADMAP / TECH_STACK / CURRENT_STATE.
 
 ## 📝 Контекст и решения
 - **Стек (фактический):** Express + TypeScript + Mongoose (backend),

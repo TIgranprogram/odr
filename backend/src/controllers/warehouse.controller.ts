@@ -1,6 +1,17 @@
 import { Request, Response } from 'express';
 import * as WarehouseService from '../services/warehouse.service';
 import { asyncHandler } from '../utils/asyncHandler';
+import {
+  ensureObject,
+  optionalString,
+  pickAllowed,
+  requireEnum,
+  requireNumber,
+  requireString,
+} from '../utils/validate';
+
+const MOVEMENT_FIELDS = ['date', 'type', 'itemName', 'quantity', 'unit', 'targetOrderItemRef', 'note'] as const;
+const MOVEMENT_TYPES = ['INCOME', 'OUTCOME'] as const;
 
 export const getAll = asyncHandler(async (_req: Request, res: Response) => {
   const items = await WarehouseService.getAll();
@@ -8,7 +19,16 @@ export const getAll = asyncHandler(async (_req: Request, res: Response) => {
 });
 
 export const create = asyncHandler(async (req: Request, res: Response) => {
-  const saved = await WarehouseService.create(req.body);
+  const body = ensureObject(req.body);
+  const allowed = pickAllowed(body, MOVEMENT_FIELDS);
+
+  requireString(allowed.itemName, 'itemName');
+  requireNumber(allowed.quantity, 'quantity');
+  if (allowed.type !== undefined) requireEnum(allowed.type, 'type', MOVEMENT_TYPES);
+  optionalString(allowed.unit, 'unit');
+  optionalString(allowed.note, 'note');
+
+  const saved = await WarehouseService.create(allowed as Parameters<typeof WarehouseService.create>[0]);
   res.status(201).json(saved);
 });
 
@@ -19,7 +39,13 @@ export const findById = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
-  const updated = await WarehouseService.update(req.params.id, req.body);
+  const body = ensureObject(req.body);
+  const allowed = pickAllowed(body, MOVEMENT_FIELDS);
+  if (allowed.itemName !== undefined) requireString(allowed.itemName, 'itemName');
+  if (allowed.quantity !== undefined) requireNumber(allowed.quantity, 'quantity');
+  if (allowed.type !== undefined) requireEnum(allowed.type, 'type', MOVEMENT_TYPES);
+
+  const updated = await WarehouseService.update(req.params.id, allowed as Parameters<typeof WarehouseService.update>[1]);
   if (!updated) return res.status(404).json({ error: 'Not found' });
   res.json(updated);
 });

@@ -1,30 +1,12 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient, HttpParams } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { inject, DestroyRef } from '@angular/core';
-import { API_URL } from '../../core/api';
+import { InvoiceService } from '../../core/services/invoice.service';
+import { DictionaryService } from '../../core/services/dictionary.service';
+import { ToastService } from '../../core/services/toast.service';
 import { COMPANIES } from '../../core/constants';
-
-interface InvoiceItem {
-  itemName: string;
-  quantity: number;
-  price: number;
-  sum: number;
-}
-
-interface Invoice {
-  _id?: string;
-  invoiceNumber: string;
-  invoiceDate: string;
-  supplier: string;
-  invoiceType: string;
-  company: string;
-  items: InvoiceItem[];
-  totalAmount: number;
-  isPaid: boolean;
-}
+import { Invoice } from '../../core/models';
 
 const emptyInvoice = (): Invoice => ({
   invoiceNumber: '',
@@ -52,7 +34,6 @@ const emptyInvoice = (): Invoice => ({
       </div>
 
       <div class="alert alert-error" *ngIf="error">{{ error }}</div>
-      <div class="alert alert-success" *ngIf="notice">{{ notice }}</div>
 
       <div class="card mb-4">
         <div class="filters">
@@ -105,7 +86,7 @@ const emptyInvoice = (): Invoice => ({
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="row-between mb-4">
             <h2 class="modal-title">Новый счёт</h2>
-            <button class="btn-ghost" (click)="closeForm()">✕</button>
+            <button class="btn-ghost" aria-label="Закрыть" (click)="closeForm()">✕</button>
           </div>
 
           <form (ngSubmit)="save()">
@@ -156,7 +137,7 @@ const emptyInvoice = (): Invoice => ({
                   (input)="recalc(i)" class="num-input"
                 />
                 <span class="muted line-sum">{{ line.sum | number:'1.2-2' }} ₽</span>
-                <button type="button" class="btn-ghost" (click)="removeLine(i)" [disabled]="form.items.length === 1">✕</button>
+                <button type="button" class="btn-ghost" aria-label="Удалить позицию" (click)="removeLine(i)" [disabled]="form.items.length === 1">✕</button>
               </div>
               <button type="button" class="btn-ghost" (click)="addLine()">＋ Добавить позицию</button>
             </div>
@@ -214,14 +195,17 @@ export class InvoicesComponent implements OnInit {
   loading = false;
   saving = false;
   error = '';
-  notice = '';
 
   showForm = false;
   form = emptyInvoice();
 
-  constructor(private http: HttpClient) {}
-
   private readonly destroyRef = inject(DestroyRef);
+
+  constructor(
+    private readonly invoiceService: InvoiceService,
+    private readonly dictionaryService: DictionaryService,
+    private readonly toast: ToastService,
+  ) {}
 
   ngOnInit(): void {
     this.fetch();
@@ -231,11 +215,8 @@ export class InvoicesComponent implements OnInit {
   fetch(): void {
     this.loading = true;
     this.error = '';
-    let params = new HttpParams();
-    if (this.filterPaid !== '') params = params.set('isPaid', this.filterPaid);
-
-    this.http
-      .get<Invoice[]>(`${API_URL}/api/invoices`, { params })
+    this.invoiceService
+      .list(this.filterPaid)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.invoices = data),
@@ -245,8 +226,8 @@ export class InvoicesComponent implements OnInit {
   }
 
   private fetchSuppliers(): void {
-    this.http
-      .get<{ name: string }[]>(`${API_URL}/api/dictionaries/Suppliers`)
+    this.dictionaryService
+      .list('Suppliers')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: all => (this.suppliers = [...new Set(all.map(d => d.name).filter(Boolean))].sort()),
@@ -286,20 +267,21 @@ export class InvoicesComponent implements OnInit {
     this.error = '';
     const payload = { ...this.form, totalAmount: this.form.totalAmount };
 
-    this.http
-      .post<Invoice>(`${API_URL}/api/invoices`, payload)
+    this.invoiceService
+      .create(payload)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.saving = false;
           this.showForm = false;
-          this.notice = 'Счёт создан';
-          setTimeout(() => (this.notice = ''), 3000);
+          this.toast.success('Счёт создан');
           this.fetch();
         },
         error: err => {
           this.saving = false;
-          this.error = err?.error?.error || 'Ошибка сохранения';
+          const message = err?.error?.error || 'Ошибка сохранения';
+          this.error = message;
+          this.toast.error(message);
         },
       });
   }

@@ -3,8 +3,8 @@
 Система для управления поставками, счетами, складскими остатками и аналитикой
 доходов/расходов (ОДР).
 
-> **Статус проекта: в разработке.** Полный аудит проведён 13.10.2026,
-> список оставшихся работ — **[`docs/tasks/TECH_TASKS.md`](docs/tasks/TECH_TASKS.md)**,
+> **Статус проекта: в разработке.** Аудит проведён 13.10.2026,
+> актуальное ТЗ по агентам — **[`docs/tasks/AGENT_TASKS.md`](docs/tasks/AGENT_TASKS.md)**,
 > текущее состояние — **[`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md)**.
 
 ## 🛠 Стек
@@ -19,7 +19,7 @@
 
 ## 🚀 Быстрый старт
 
-> ⚠️ Порядок ниже — целевой. Часть шагов ещё в работе (см. `TECH_TASKS.md` §1–§2).
+> Порядок ниже актуален. Полностью контейнеризованный запуск — шаг 6.
 
 **1. Зависимости**
 ```bash
@@ -49,10 +49,13 @@ cd backend && npm run dev      # http://localhost:3000
 cd frontend && npm start       # http://localhost:4200
 ```
 
-**6. Всё в Docker** *(требует `Dockerfile` — задача 1.2/1.3)*
+**6. Всё в Docker** *(MongoDB + backend + frontend)*
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
+> Seed выполняется автоматически: one-shot сервис `seed` заполняет БД (CSV +
+> `admin/admin123`) до старта backend. Ручной `npm run seed` нужен только для
+> локального запуска без Docker.
 
 ## 📂 Структура проекта
 
@@ -73,7 +76,7 @@ frontend/           Angular 17
       shell/        layout: sidebar + header + router-outlet
       requisitions|orders|invoices|warehouse|dictionaries|reports|auth
 docs/               Roadmap, Domain Map, ODR Logic, Tech Stack
-docs/tasks/         TODO_CHECKLIST.md, TECH_TASKS.md ← оставшиеся работы
+docs/tasks/         AGENT_TASKS.md (ТЗ), AGENT_PROMPTS.md, TODO_CHECKLIST.md
 ```
 
 ## 🔐 Доступ
@@ -85,7 +88,11 @@ docs/tasks/         TODO_CHECKLIST.md, TECH_TASKS.md ← оставшиеся р
 | Файл | Содержание |
 |---|---|
 | [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) | «Файл сохранения» — где мы сейчас |
-| [`docs/tasks/TECH_TASKS.md`](docs/tasks/TECH_TASKS.md) | **ТЗ: что осталось сделать** |
+| [`docs/tasks/AGENT_TASKS.md`](docs/tasks/AGENT_TASKS.md) | **Актуальное ТЗ для агентов** |
+| [`docs/pages/`](docs/pages/README.md) | Описание экранов (`*.page.md`) |
+| API docs | Swagger UI: `http://localhost:3000/api/docs` (спека — `/api/openapi.json`) |
+| [`docs/tasks/AGENT_PROMPTS.md`](docs/tasks/AGENT_PROMPTS.md) | Промпты агентов + план проверки |
+| [`docs/tasks/TECH_TASKS.md`](docs/tasks/TECH_TASKS.md) | Историческое ТЗ (первый аудит) |
 | [`docs/tasks/TODO_CHECKLIST.md`](docs/tasks/TODO_CHECKLIST.md) | Чек-лист статусов |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Этапы: Инфраструктура → Снабжение → Аналитика |
 | [`docs/DOMAIN_MAP.md`](docs/DOMAIN_MAP.md) | Карта доменов и связей |

@@ -7,17 +7,42 @@ import path from 'path';
 import * as DictionaryService from '../src/services/dictionary.service';
 import * as RequisitionService from '../src/services/requisition.service';
 import * as StockItemService from '../src/services/stockItem.service';
+import * as ProductService from '../src/services/product.service';
 import * as AuthService from '../src/services/auth.service';
 import { User } from '../src/models/User';
 import { Dictionary } from '../src/models/Dictionary';
 import { Requisition, type IRequisition } from '../src/models/Requisition';
 import { StockItem } from '../src/models/StockItem';
+import { Product } from '../src/models/Product';
 
-// Путь к выгрузкам можно переопределить переменной окружения SEED_DATA_DIR,
-// значение по умолчанию работает для этой машины.
-const DATA_DIR = process.env.SEED_DATA_DIR || 'D:/ОДР/данные для заполнения на сайте';
+/**
+ * Папка с CSV-выгрузками. Приоритет: SEED_DATA_DIR (env/docker), иначе —
+ * путь относительно корня репозитория (backend запускается из ./backend).
+ */
+function resolveDataDir(): string {
+  if (process.env.SEED_DATA_DIR) return process.env.SEED_DATA_DIR;
+  const candidates = [
+    path.resolve(process.cwd(), 'данные для заполнения на сайте', 'data'),
+    path.resolve(process.cwd(), '..', 'данные для заполнения на сайте', 'data'),
+  ];
+  return candidates.find((dir) => fs.existsSync(dir)) ?? candidates[0];
+}
+
+const DATA_DIR = resolveDataDir();
 const SUPPLY_CSV = path.join(DATA_DIR, 'Снабжение - Снабжение.csv');
 const STOCK_CSV = path.join(DATA_DIR, 'Склад - Склад.csv');
+const PRODUCTS_CSV = path.join(DATA_DIR, 'db_spotninyg - products.csv');
+
+/** Явная ошибка вместо «молча залили 0 записей». */
+function assertFileExists(filePath: string, label: string): void {
+  if (!fs.existsSync(filePath)) {
+    console.error(
+      `❌ ${label}: файл не найден — ${filePath}\n` +
+      `   Задайте SEED_DATA_DIR или положите выгрузки в «данные для заполнения на сайте/data».`
+    );
+    process.exit(1);
+  }
+}
 
 const mongoURI = process.env.MONGO_URI || 'mongodb://localhost:27017/kppdf';
 
@@ -128,13 +153,23 @@ async function seed() {
     await mongoose.connect(mongoURI);
     console.log('Connected to MongoDB for seeding...');
 
+    // Проверяем наличие обязательных выгрузок ДО очистки БД.
+    assertFileExists(SUPPLY_CSV, 'Заявки/Снабжение');
+    assertFileExists(STOCK_CSV, 'Склад');
+    assertFileExists(PRODUCTS_CSV, 'Каталог (products)');
+
+    const supplyData = parseCSV(SUPPLY_CSV);
+    const stockData = parseCSV(STOCK_CSV, 'Наименование ТМЦ');
+    const productsData = parseCSV(PRODUCTS_CSV, 'Внутренний_SKU');
+
     // Dev-инструмент: очистка перед заливкой, чтобы повторный запуск не дублировал данные.
     // Пользователей НЕ удаляем — админ создаётся upsert'ом по username.
     const dictWiped = (await DictionaryService.getAll()).length;
     const reqWiped = (await RequisitionService.getAll()).length;
     const stockWiped = (await StockItemService.getAll()).length;
+    const productsWiped = (await ProductService.getAll()).length;
     await clearCollections();
-    console.log(`🧹 Очищено перед заливкой: dictionary=${dictWiped}, requisitions=${reqWiped}, stock=${stockWiped}`);
+    console.log(`🧹 Очищено перед заливкой: dictionary=${dictWiped}, requisitions=${reqWiped}, stock=${stockWiped}, products=${productsWiped}`);
 
     // 1. Dev-админ (без удаления существующих пользователей — upsert по username)
     const adminPasswordHash = await AuthService.hashPassword('admin123');
@@ -157,8 +192,19 @@ async function seed() {
       console.log('ℹ️ Пользователь admin уже существует — пропускаем создание.');
     }
 
-    // 2. Справочник: name = value = реальное значение (иначе в UI колонки пустые)
-    const categories = ['Оборудование', 'Покупные изделия', 'Расходники', 'Метизы', 'Услуги'];
+    // 2. Справочник: name = value = реальное значение (иначе в UI колонки пустые).
+    // T-3.3: категории = дефолтные ∪ категории из заявок ∪ категории каталога.
+    const defaultCategories = ['Оборудование', 'Покупные изделия', 'Расходники', 'Метизы', 'Услуги'];
+    const categoriesSet = new Set<string>(defaultCategories);
+    for (const row of supplyData) {
+      const cat = (row['Категория'] || '').trim();
+      if (cat) categoriesSet.add(cat);
+    }
+    for (const row of productsData) {
+      const cat = (row['Категория'] || '').trim();
+      if (cat) categoriesSet.add(cat);
+    }
+    const categories = Array.from(categoriesSet);
     for (const cat of categories) {
       await DictionaryService.createItem(cat, DICTIONARY_CATEGORIES.types, cat);
     }
@@ -170,7 +216,6 @@ async function seed() {
     console.log(`✅ Справочник: Types=${categories.length}, Units=${units.length}`);
 
     // 3. Поставщики и заказчики из Снабжение.csv
-    const supplyData = parseCSV(SUPPLY_CSV);
     const suppliers = new Set<string>();
     const customers = new Set<string>();
     for (const row of supplyData) {
@@ -187,8 +232,7 @@ async function seed() {
     }
     console.log(`✅ Справочник: Suppliers=${suppliers.size}, Customers=${customers.size}`);
 
-    // 4. Склад из Склад - Склад.csv (шапка ищется по содержимому, .slice(1) не нужен)
-    const stockData = parseCSV(STOCK_CSV, 'Наименование ТМЦ');
+    // 4. Склад из Склад - Склад.csv (шапка ищется по содержимому)
     let stockSeeded = 0;
     for (const item of stockData) {
       const name = (item['Наименование ТМЦ'] || '').trim();
@@ -215,6 +259,34 @@ async function seed() {
       }
     }
     console.log(`✅ Склад: ${stockSeeded} позиций (строк с шапкой: ${stockData.length}).`);
+
+    // 4.1. Каталог номенклатуры из db_spotninyg - products.csv (T-3.1)
+    let productsSeeded = 0;
+    for (const row of productsData) {
+      const internalSku = (row['Внутренний_SKU'] || '').trim();
+      const name = (row['Модель_Наименование'] || '').trim() || (row['Полное_Наименование'] || '').trim();
+      if (!internalSku || !name) continue;
+      try {
+        await ProductService.create({
+          supplierArticle: row['Артикул_Поставщика'] || '',
+          internalSku,
+          category: row['Категория'] || '',
+          subcategory: row['Подкатегория_Тип'] || '',
+          brand: row['Бренд'] || '',
+          name,
+          size: row['Параметры_Размер'] || '',
+          supplier: row['Поставщик'] || '',
+          price: parseNumber(row['Цена']),
+          unit: row['Ед_Изм'] || '',
+          fullName: row['Полное_Наименование'] || '',
+        });
+        productsSeeded++;
+      } catch (err) {
+        failures++;
+        console.error(`❌ Товар «${name}»:`, err instanceof Error ? err.message : err);
+      }
+    }
+    console.log(`✅ Каталог: ${productsSeeded} позиций (строк с шапкой: ${productsData.length}).`);
 
     // 5. Заявки из Снабжение.csv
     let requisitionsSeeded = 0;
@@ -281,6 +353,7 @@ async function clearCollections() {
     Dictionary.deleteMany({}),
     Requisition.deleteMany({}),
     StockItem.deleteMany({}),
+    Product.deleteMany({}),
   ]);
 }
 

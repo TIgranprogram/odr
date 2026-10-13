@@ -29,6 +29,10 @@ export const SHELL_ROUTES: Routes = [
         loadComponent: () => import('../warehouse/warehouse.component').then(m => m.WarehouseComponent),
       },
       {
+        path: 'catalog',
+        loadComponent: () => import('../catalog/catalog.component').then(m => m.CatalogComponent),
+      },
+      {
         path: 'dictionaries',
         loadComponent: () => import('../dictionaries/dictionaries.component').then(m => m.DictionariesComponent),
       },

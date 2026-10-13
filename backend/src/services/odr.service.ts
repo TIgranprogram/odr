@@ -1,5 +1,6 @@
 import { Requisition } from '../models/Requisition';
 import { Invoice } from '../models/Invoice';
+import { AdditionalIncome } from '../models/AdditionalIncome';
 
 /**
  * Отчёт ОДР считается агрегацией по существующим коллекциям:
@@ -7,6 +8,16 @@ import { Invoice } from '../models/Invoice';
  * Отдельная модель OdrReport удалена: она нигде не использовалась (и в ней был
  * неимпортированный Schema).
  */
+
+/**
+ * Статусы заявок, формирующие расход (по ODR_LOGIC.md: «Заказано», «Получено», «Оплачено»).
+ * Строки совпадают с frontend/src/app/core/constants.ts и колонкой «Статус» выгрузки
+ * «Снабжение - Снабжение.csv»:
+ *   «Заказано» → '✅ Заказать'
+ *   «Получено» → '☑️ Получено'
+ *   «Оплачено» → '💰 Оплачено'
+ */
+const ODR_EXPENSE_STATUSES = ['✅ Заказать', '💰 Оплачено', '☑️ Получено'];
 
 export interface OdrReport {
   totalIncome: number;
@@ -17,8 +28,10 @@ export interface OdrReport {
 
 /**
  * Рассчитывает отчёт за период.
- * Income: сумма Invoice.totalAmount, где isPaid = true.
- * Expense: сумма Requisition.priceWithVat, где статус не '⏳ Ожидает'.
+ * Income: сумма Invoice.totalAmount, где isPaid = true, ПЛЮС сумма «Прочих поступлений»
+ *   (AdditionalIncome.amount) за период.
+ * Expense: сумма Requisition.priceWithVat * quantity, где статус в ODR_EXPENSE_STATUSES
+ * и заявка ещё не покрыта счётом (invoiceRef не заполнен) — иначе двойной учёт.
  */
 export const getReport = async (startDate: Date, endDate: Date): Promise<OdrReport> => {
   const income = await Invoice.aggregate([
@@ -26,12 +39,34 @@ export const getReport = async (startDate: Date, endDate: Date): Promise<OdrRepo
     { $group: { _id: null, total: { $sum: '$totalAmount' } } },
   ]);
 
-  const expense = await Requisition.aggregate([
-    { $match: { date: { $gte: startDate, $lte: endDate }, status: { $ne: '⏳ Ожидает' } } },
-    { $group: { _id: null, total: { $sum: '$priceWithVat' } } },
+  const additionalIncome = await AdditionalIncome.aggregate([
+    { $match: { date: { $gte: startDate, $lte: endDate } } },
+    { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
 
-  const totalIncome = income.length > 0 ? income[0].total : 0;
+  const expense = await Requisition.aggregate([
+    {
+      $match: {
+        date: { $gte: startDate, $lte: endDate },
+        status: { $in: ODR_EXPENSE_STATUSES },
+        $or: [{ invoiceRef: { $exists: false } }, { invoiceRef: null }],
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        total: {
+          $sum: {
+            $multiply: [{ $ifNull: ['$priceWithVat', 0] }, { $ifNull: ['$quantity', 1] }],
+          },
+        },
+      },
+    },
+  ]);
+
+  const totalIncome =
+    (income.length > 0 ? income[0].total : 0) +
+    (additionalIncome.length > 0 ? additionalIncome[0].total : 0);
   const totalExpense = expense.length > 0 ? expense[0].total : 0;
 
   return {

@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
 import { User } from '../models/User';
 import * as authService from '../services/auth.service';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -27,6 +28,41 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     },
     accessToken,
     refreshToken,
+  });
+});
+
+export const refresh = asyncHandler(async (req: Request, res: Response) => {
+  const { refreshToken } = req.body ?? {};
+  if (typeof refreshToken !== 'string' || !refreshToken) {
+    return res.status(400).json({ error: 'refreshToken is required' });
+  }
+
+  let payload: string | JwtPayload;
+  try {
+    payload = authService.verifyRefreshToken(refreshToken);
+  } catch {
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+
+  // refresh-токен обязан иметь маркер type:'refresh' (access сюда не пройдёт по секрету,
+  // но проверяем явно — на случай смены секрета).
+  if (typeof payload === 'string' || payload.type !== 'refresh') {
+    return res.status(401).json({ error: 'Invalid refresh token' });
+  }
+
+  const user = await User.findOne({ username: payload.sub });
+  if (!user || user.isActive === false) {
+    return res.status(401).json({ error: 'User not found or deactivated' });
+  }
+
+  res.json({
+    user: {
+      username: user.username,
+      fullName: user.fullName,
+      role: user.role,
+    },
+    accessToken: authService.generateAccessToken(user),
+    refreshToken: authService.generateRefreshToken(user),
   });
 });
 
