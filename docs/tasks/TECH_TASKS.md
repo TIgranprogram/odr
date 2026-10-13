@@ -14,9 +14,9 @@
 | Frontend: инфраструктура сборки | ✅ Восстановлена (`angular.json`, `tsconfig`, `main.ts`, `index.html`) |
 | Frontend: зависимости | ✅ Установлены (805 пакетов) |
 | Frontend: оболочка (layout, роуты, auth) | ✅ Написана (shell, guard, interceptor, login) |
-| Frontend: рабочие страницы | ⏳ Частично (см. §3) |
-| Backend: компиляция | ⏳ Идёт починка (7 блокеров, см. §2) |
-| Backend: seed + MongoDB | ⏳ В работе |
+| Frontend: рабочие страницы | ✅ Все страницы переписаны, `ng build` проходит |
+| Backend: компиляция | ✅ 7 блокеров закрыты, `tsc` — 0 ошибок |
+| Backend: seed + MongoDB | ✅ Seed работает, админ создан, данные залиты |
 | Docker-окружение | ✅ Docker Desktop установлен и запущен |
 | Тесты / линтеры | ❌ Не настроены |
 
@@ -24,10 +24,12 @@
 
 ## 1. 🔴 Инфраструктура и запуск (блокеры)
 
-- [ ] **1.1.** Убедиться, что `docker-compose up -d` поднимает MongoDB + backend + frontend без ошибок.
+- [x] **1.1.** Убедиться, что `docker-compose up -d` поднимает MongoDB + backend + frontend без ошибок.
   - Приёмка: `docker compose ps` — все сервисы `running`, `curl http://localhost:3000/health` → `{"status":"ok"}`.
-  - Файлы: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile` (**backend/Dockerfile создаётся в §2**).
-- [ ] **1.2.** Создать `backend/Dockerfile` (multi-stage: `node:20-alpine`, `npm ci`, `tsc`, `CMD ["node","dist/src/server.js"]`).
+  - Файлы: `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`.
+  - **13.10:** ✅ Все 3 контейнера `running`, seed внутри контейнера отработал,
+    логин/словари/заявки/склад/ОДР доступны через nginx на :4200.
+- [x] **1.2.** Создать `backend/Dockerfile` (multi-stage: `node:20-alpine`, `npm ci`, `tsc`, `CMD ["node","dist/src/server.js"]`).
 - [x] **1.3.** Создать `frontend/Dockerfile` (сборка `ng build` + раздача статики nginx) и `frontend/nginx.conf` (прокси `/api` на backend).
   - **13.10:** `frontend/Dockerfile` и `nginx.conf` созданы, `ng build` проходит.
 - [ ] **1.4.** Создать `.env.example` в корне (без секретов) и свести `JWT_SECRET` к одному источнику.
@@ -41,20 +43,22 @@
 
 ## 2. 🔴 Backend: компиляция и запуск (7 блокеров из аудита)
 
-- [ ] **2.1.** `src/routes/orders.ts` — **файл отсутствует**, а импортируется в `server.ts:10` → сервер не стартует (`MODULE_NOT_FOUND`).
+- [x] **2.1.** `src/routes/orders.ts` — **файл отсутствует**, а импортируется в `server.ts:10` → сервер не стартует (`MODULE_NOT_FOUND`).
   - Создать роутер: `GET /`, `POST /`, `GET /:id`, `PUT /:id`, `DELETE /:id` на `OrderController`.
-- [ ] **2.2.** `src/routes/invoices.ts:12-15` — на тот же роутер вешается `OrderController` → хендлеры недостижимы. Удалить дубли.
-- [ ] **2.3.** `src/services/dictionary.service.ts` — **файл написан на Python-псевдокоде** (`from models... import`, `async def`, `.update_one()`). Переписать на TypeScript: `getAll`, `getByCategory`, `getById`, `createItem`, `updateItem`, `deleteItem`.
-- [ ] **2.4.** `src/services/auth.service.ts` — нет `hashPassword` (вызывается в `auth.controller.ts:34`). Добавить `bcrypt.hash(p, 10)`.
-- [ ] **2.5.** `src/services/odr.service.ts:24` — `Schema` не импортирован (или удалить неиспользуемую модель `OdrReport`).
-- [ ] **2.6.** `scripts/seed.ts:3-6` — неверные пути импорта `./src/...` → заменить на `../src/...`.
-- [ ] **2.7.** Все контроллеры используют `import * as Service`, а сервисы — `export default` → `Service.getAll === undefined` в рантайме.
+- [x] **2.2.** `src/routes/invoices.ts:12-15` — на тот же роутер вешается `OrderController` → хендлеры недостижимы. Удалить дубли.
+- [x] **2.3.** `src/services/dictionary.service.ts` — **файл написан на Python-псевдокоде** (`from models... import`, `async def`, `.update_one()`). Переписать на TypeScript: `getAll`, `getByCategory`, `getById`, `createItem`, `updateItem`, `deleteItem`.
+- [x] **2.4.** `src/services/auth.service.ts` — нет `hashPassword` (вызывается в `auth.controller.ts:34`). Добавить `bcrypt.hash(p, 10)`.
+- [x] **2.5.** `src/services/odr.service.ts:24` — `Schema` не импортирован (или удалить неиспользуемую модель `OdrReport`).
+- [x] **2.6.** `scripts/seed.ts:3-6` — неверные пути импорта `./src/...` → заменить на `../src/...`.
+- [x] **2.7.** Все контроллеры используют `import * as Service`, а сервисы — `export default` → `Service.getAll === undefined` в рантайме.
   - Решение: именованные экспорты в сервисах. Проверить: dictionary, requisition, invoice, order, warehouse, stockItem, odr.
-- [ ] **2.8.** Создать `backend/tsconfig.json` (`target ES2021`, `module commonjs`, `outDir dist`, `rootDir .`, `strict true`, `esModuleInterop true`).
-- [ ] **2.9.** Добавить `@types/*` в devDependencies: `node`, `express`, `cors`, `jsonwebtoken`, `bcryptjs`.
-- [ ] **2.10.** `dotenv.config()` не вызывается → вынести в `src/config/env.ts` и импортировать **первым** в `server.ts` (из-за hoisting'а импортов `JWT_SECRET` читается на уровне модуля).
+- [x] **2.8.** Создать `backend/tsconfig.json` (`target ES2021`, `module commonjs`, `outDir dist`, `rootDir .`, `strict true`, `esModuleInterop true`).
+- [x] **2.9.** Добавить `@types/*` в devDependencies: `node`, `express`, `cors`, `jsonwebtoken`, `bcryptjs`.
+- [x] **2.10.** `dotenv.config()` не вызывается → вынести в `src/config/env.ts` и импортировать **первым** в `server.ts` (из-за hoisting'а импортов `JWT_SECRET` читается на уровне модуля).
 
 **Критерий приёмки:** `npx tsc --noEmit` → 0 ошибок; `npm run build` → `dist/`; `npm run start` → сервер отвечает.
+
+**Статус 13.10.2026:** ✅ Всё закрыто и проверено: `tsc` — 0 ошибок, `npm run build` — успех, сервер стартует, `/health` → 200, логин `admin/admin123` → 200, API без токена → 401, невалидные даты ОДР → 400.
 
 ---
 

@@ -29,9 +29,11 @@ services:
       MONGO_URI: mongodb://mongodb:27017/kppdf
       # Секреты лучше выносить в .env (см. .env.example)
       JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
-      DATA_DIR: /app/data
+      # Путь к CSV-выгрузкам для seed-скрипта
+      SEED_DATA_DIR: /data/seed
     volumes:
-      - ./backend/data:/app/data
+      # Выгрузки для первичного наполнения (только чтение)
+      - "./данные для заполнения на сайте:/data/seed:ro"
     ports:
       - "3000:3000"
 
