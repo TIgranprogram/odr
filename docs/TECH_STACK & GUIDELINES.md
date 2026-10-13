@@ -1,7 +1,7 @@
 # TECH_STACK & GUIDELINES (Технический паспорт)
 
 ## 🛠 Технологический стек
-- **Frontend**: Angular 17+ (Standalone Components, Signals, Reactive/Template-driven Forms).
+- **Frontend**: Angular 22 (Standalone Components, Signals, Reactive/Template-driven Forms).
 - **UI Library**: без стороннего UI-кита — собственный целостный набор стилей.
 - **Backend**: Node.js + Express.js + TypeScript + Mongoose.
 - **Database**: MongoDB 7+.

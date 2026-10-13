@@ -197,22 +197,34 @@
 
 ## 6. ⚪ P3 — Архитектурный долг (из `DOMAIN_MAP` / `TECH_STACK`)
 
-> **Статус (13.10.2026):** T-6.4 и T-6.5 — ✅ выполнены. T-6.1/6.2/6.3/6.6 —
-> сознательно **отложены** (крупные изменения модели данных, не блокируют текущий функционал).
+> **Статус (13.10.2026):** T-6.1/6.2/6.3/6.4/6.5/6.6 — ✅ **все выполнены**.
 
-- **T-6.1.** ⏸️ ОТЛОЖЕНО. Tenant isolation: `organizationId` на документах, скоуп в сервисах (сейчас поля нет вообще). Требует миграции схем + правок всех сервисов/запросов.
-- **T-6.2.** ⏸️ ОТЛОЖЕНО. Snapshotting: неизменяемые снимки цен/объёмов при переходах Заявка→Счёт/Заказ. Требует новых полей и логики переходов.
-- **T-6.3.** ⏸️ ОТЛОЖЕНО. Audit log изменений (кто/когда/что) — правило TECH_STACK не выполнено. Требует модели `AuditLog` + middleware на изменения.
+- **T-6.1.** ✅ ВЫПОЛНЕНО. Tenant isolation: `organizationId` (default `default-org`) во всех моделях
+  документов + `User`; JWT содержит organizationId (fallback для старых токенов — без перелогина);
+  сервисы скоупят списки/агрегации; клиент не может задать org в теле (не в allow-листе); seed
+  назначает org всем записям. Тесты `tests/tenancy.test.ts`.
+- **T-6.2.** ✅ ВЫПОЛНЕНО. Snapshotting: модель `RequisitionSnapshot` (копия ключевых полей +
+  `lineTotal` + `previousStatus`), создаётся при фактической смене статуса в
+  `requisition.controller.update`; **неизменяемость** — update/delete-эндпоинтов нет + запрет на
+  уровне Mongoose (pre-хуки). `GET /api/requisitions/:id/snapshots`. Тесты `tests/snapshots.test.ts`.
+- **T-6.3.** ✅ ВЫПОЛНЕНО. Audit log: модель `AuditLog` + `audit.service.ts` (никогда не бросает
+  исключений — ошибка аудита не ломает операцию); запись на уровне контроллеров по 8 сущностям
+  (requisitions, invoices, orders, dictionaries, stockItems, products, additionalIncomes, users);
+  `GET /api/audit-logs` — только ADMIN, фильтры + пагинация. Тесты `tests/audit.test.ts`.
 - **T-6.4.** ✅ ВЫПОЛНЕНО. OpenAPI 3.0: `backend/src/config/openapi.ts` + `backend/src/routes/docs.ts`;
   `GET /api/openapi.json` (спека) и `GET /api/docs` (Swagger UI, CDN) — без токена; тест `tests/docs.test.ts`.
 - **T-6.5.** ✅ ВЫПОЛНЕНО. `docs/pages/<name>.page.md` для каждого экрана (`README` + login, shell,
   requisitions, orders, invoices, warehouse, catalog, dictionaries, odr).
-- **T-6.6.** ⏸️ ОТЛОЖЕНО. Индексы/оптимизация Mongo-запросов при росте данных. Актуально после появления объёмов/жалоб на скорость.
+- **T-6.6.** ✅ ВЫПОЛНЕНО. Индексы: добавлены requisitions `{customer: 1}`, auditLogs `{createdAt: -1}`
+  и `{entityType: 1, createdAt: -1}`, snapshots `{requisitionId: 1}` (уже существовавшие не дублировались).
 
 ### Сопутствующая задача: апгрейд Angular (следствие T-2.4)
-- **Статус:** ⏸️ ЗАПЛАНИРОВАНО (отдельная задача, не в этой волне).
-- **Проблема:** frontend-prod `npm audit` — 7 уязвимостей в `@angular/core`; устраняются только мажорным апгрейдом (ломающим).
-- **План:** поэтапный `ng update @angular/core@N @angular/cli@N` с прогоном `npm run build` + `npm run lint` на каждом шаге; фиксировать в отдельной ветке.
+- **Статус:** ✅ ВЫПОЛНЕНО (13.10.2026). Angular 17.3.12 → **22.2.2** поэтапным `ng update`
+  (17→18→19→20→21→22 + миграция `use-application-builder`).
+- **Итог:** builder `@angular/build:application`, TypeScript ~6.0.3, zone.js 0.15.1 (zone-based CD
+  сохранён), ESLint 10 flat config + typescript-eslint 8, Dockerfile → `node:22-alpine`.
+- **Результат audit:** 66 уязвимостей (2 critical XSS в `@angular/core`) → **0** (и prod, и dev).
+- **Проверки:** `npm run build` ✅, `npm run lint` ✅ (0 сообщений), `npm audit` ✅ (0).
 
 ---
 

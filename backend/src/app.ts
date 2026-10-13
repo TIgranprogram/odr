@@ -20,6 +20,7 @@ import productRoutes from './routes/products';
 import additionalIncomeRoutes from './routes/additionalIncomes';
 import odrRoutes from './routes/odr';
 import docsRoutes from './routes/docs';
+import auditLogRoutes from './routes/auditLogs';
 
 export const app = express();
 
@@ -67,6 +68,8 @@ app.use('/api/stockitems', stockItemRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/additional-incomes', additionalIncomeRoutes);
 app.use('/api/odr', odrRoutes);
+// Журнал аудита (T-6.3) — только ADMIN
+app.use('/api/audit-logs', roleMiddleware(['ADMIN']), auditLogRoutes);
 
 // 404-catch-all — ПОСЛЕ всех роутов
 app.use((req: Request, res: Response) => {

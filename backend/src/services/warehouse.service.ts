@@ -1,7 +1,10 @@
 import { WarehouseMovement, IWarehouseMovement } from '../models/WarehouseMovement';
 
-export const getAll = async (): Promise<IWarehouseMovement[]> => {
-  return await WarehouseMovement.find({}).sort({ date: -1 }).exec();
+/** T-6.1: список скоупится по организации (необязательный параметр). */
+export const getAll = async (organizationId?: string): Promise<IWarehouseMovement[]> => {
+  const filter: Record<string, unknown> = {};
+  if (organizationId) filter.organizationId = organizationId;
+  return await WarehouseMovement.find(filter).sort({ date: -1 }).exec();
 };
 
 export const create = async (data: Partial<IWarehouseMovement>): Promise<IWarehouseMovement> => {

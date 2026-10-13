@@ -1,6 +1,7 @@
 import jwt, { SignOptions } from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 const JWT_SECRET = env.jwtSecret;
 const REFRESH_SECRET = env.refreshSecret;
@@ -10,6 +11,7 @@ interface TokenUser {
   username?: string;
   fullName?: string;
   role?: string;
+  organizationId?: string;
 }
 
 /** Хэширование пароля (10 раундов bcrypt) — используется auth.controller.register. */
@@ -23,6 +25,8 @@ export const generateAccessToken = (user: TokenUser): string => {
     id: user._id,
     role: user.role,
     fullName: user.fullName,
+    // T-6.1: скоуп организации; fallback — для пользователей без поля в БД
+    organizationId: user.organizationId || DEFAULT_ORGANIZATION_ID,
   };
   const options: SignOptions = { expiresIn: '15m' };
   return jwt.sign(payload, JWT_SECRET, options);

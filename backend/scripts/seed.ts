@@ -9,11 +9,16 @@ import * as RequisitionService from '../src/services/requisition.service';
 import * as StockItemService from '../src/services/stockItem.service';
 import * as ProductService from '../src/services/product.service';
 import * as AuthService from '../src/services/auth.service';
+import { DEFAULT_ORGANIZATION_ID } from '../src/utils/tenant';
 import { User } from '../src/models/User';
 import { Dictionary } from '../src/models/Dictionary';
 import { Requisition, type IRequisition } from '../src/models/Requisition';
 import { StockItem } from '../src/models/StockItem';
 import { Product } from '../src/models/Product';
+import { Invoice } from '../src/models/Invoice';
+import { Order } from '../src/models/Order';
+import { AdditionalIncome } from '../src/models/AdditionalIncome';
+import { WarehouseMovement } from '../src/models/WarehouseMovement';
 
 /**
  * Папка с CSV-выгрузками. Приоритет: SEED_DATA_DIR (env/docker), иначе —
@@ -182,6 +187,7 @@ async function seed() {
           fullName: 'Администратор',
           role: 'ADMIN',
           isActive: true,
+          organizationId: DEFAULT_ORGANIZATION_ID,
         },
       },
       { upsert: true }
@@ -337,6 +343,11 @@ async function seed() {
     }
     console.log(`✅ Заявки: ${requisitionsSeeded} из ${supplyData.length} строк.`);
 
+    // T-6.1: organizationId = 'default-org' всем записям (включая пользователей
+    // и записи, созданные до появления поля — иначе они не пройдут фильтр по org).
+    await assignDefaultOrg();
+    console.log(`✅ organizationId = '${DEFAULT_ORGANIZATION_ID}' назначен всем записям и пользователям.`);
+
     console.log(failures === 0
       ? '✅ All data seeded successfully.'
       : `⚠️ Seeded with ${failures} failed records.`);
@@ -354,6 +365,22 @@ async function clearCollections() {
     Requisition.deleteMany({}),
     StockItem.deleteMany({}),
     Product.deleteMany({}),
+  ]);
+}
+
+/** T-6.1: проставляет organizationId записям, созданным до появления поля. */
+async function assignDefaultOrg() {
+  const organizationId = DEFAULT_ORGANIZATION_ID;
+  await Promise.all([
+    User.updateMany({}, { $set: { organizationId } }),
+    Dictionary.updateMany({}, { $set: { organizationId } }),
+    Requisition.updateMany({}, { $set: { organizationId } }),
+    StockItem.updateMany({}, { $set: { organizationId } }),
+    Product.updateMany({}, { $set: { organizationId } }),
+    Invoice.updateMany({}, { $set: { organizationId } }),
+    Order.updateMany({}, { $set: { organizationId } }),
+    AdditionalIncome.updateMany({}, { $set: { organizationId } }),
+    WarehouseMovement.updateMany({}, { $set: { organizationId } }),
   ]);
 }
 

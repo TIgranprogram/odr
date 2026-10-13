@@ -8,8 +8,11 @@ import {
  * сервис через `import * as AdditionalIncomeService`.
  */
 
-export const getAll = async (): Promise<IAdditionalIncome[]> => {
-  return await AdditionalIncome.find({}).sort({ date: -1 }).exec();
+/** T-6.1: список скоупится по организации (необязательный параметр). */
+export const getAll = async (organizationId?: string): Promise<IAdditionalIncome[]> => {
+  const filter: Record<string, unknown> = {};
+  if (organizationId) filter.organizationId = organizationId;
+  return await AdditionalIncome.find(filter).sort({ date: -1 }).exec();
 };
 
 export const getById = async (id: string): Promise<IAdditionalIncome | null> => {

@@ -11,6 +11,8 @@ export interface RequisitionFilters {
   page?: number | string;
   limit?: number | string;
   sort?: string;
+  /** T-6.1: скоуп организации (подставляется контроллером из JWT) */
+  organizationId?: string;
   [key: string]: unknown;
 }
 
@@ -31,6 +33,7 @@ function buildQuery(filters: RequisitionFilters): Record<string, unknown> {
   if (filters.status) query.status = filters.status;
   if (filters.customer) query.customer = filters.customer;
   if (filters.priority) query.priority = filters.priority;
+  if (filters.organizationId) query.organizationId = filters.organizationId;
 
   // Фронт шлёт ?search=... — раньше фильтр просто игнорировался
   if (filters.search) {

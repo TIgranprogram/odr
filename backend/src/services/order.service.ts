@@ -1,7 +1,10 @@
 import { Order, IOrder } from '../models/Order';
 
-export const getAll = async (): Promise<IOrder[]> => {
-  return await Order.find({}).sort({ orderDate: -1 }).exec();
+/** T-6.1: список заказов скоупится по организации (необязательный параметр). */
+export const getAll = async (organizationId?: string): Promise<IOrder[]> => {
+  const filter: Record<string, unknown> = {};
+  if (organizationId) filter.organizationId = organizationId;
+  return await Order.find(filter).sort({ orderDate: -1 }).exec();
 };
 
 export const create = async (data: Partial<IOrder>): Promise<IOrder> => {

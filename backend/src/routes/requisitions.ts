@@ -7,6 +7,7 @@ router.get('/', RequisitionController.getAll);
 router.get('/paged', RequisitionController.getPaged);
 router.post('/', RequisitionController.create);
 router.get('/:id', RequisitionController.findById);
+router.get('/:id/snapshots', RequisitionController.getSnapshots);
 router.put('/:id', RequisitionController.update);
 router.delete('/:id', RequisitionController.remove);
 

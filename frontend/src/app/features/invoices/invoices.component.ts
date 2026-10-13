@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -21,7 +21,6 @@ const emptyInvoice = (): Invoice => ({
 
 @Component({
   selector: 'app-invoices',
-  standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
     <div class="page">
@@ -33,7 +32,9 @@ const emptyInvoice = (): Invoice => ({
         <button class="btn-primary" (click)="openCreate()">＋ Новый счёт</button>
       </div>
 
-      <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+      @if (error) {
+        <div class="alert alert-error">{{ error }}</div>
+      }
 
       <div class="card mb-4">
         <div class="filters">
@@ -59,133 +60,222 @@ const emptyInvoice = (): Invoice => ({
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let item of invoices">
-              <td>{{ item.invoiceNumber }}</td>
-              <td>{{ item.invoiceDate | date:'dd.MM.yyyy' }}</td>
-              <td>{{ item.supplier }}</td>
-              <td>{{ item.invoiceType }}</td>
-              <td class="num">{{ item.items.length || 0 }}</td>
-              <td class="num">{{ item.totalAmount | number:'1.2-2' }} ₽</td>
-              <td>
-                <span class="badge" [class]="item.isPaid ? 'badge-green' : 'badge-amber'">
-                  {{ item.isPaid ? '✅ Оплачено' : '⏳ Ожидает' }}
-                </span>
-              </td>
-            </tr>
+            @for (item of invoices; track item) {
+              <tr>
+                <td>{{ item.invoiceNumber }}</td>
+                <td>{{ item.invoiceDate | date: 'dd.MM.yyyy' }}</td>
+                <td>{{ item.supplier }}</td>
+                <td>{{ item.invoiceType }}</td>
+                <td class="num">{{ item.items.length || 0 }}</td>
+                <td class="num">{{ item.totalAmount | number: '1.2-2' }} ₽</td>
+                <td>
+                  <span class="badge" [class]="item.isPaid ? 'badge-green' : 'badge-amber'">
+                    {{ item.isPaid ? '✅ Оплачено' : '⏳ Ожидает' }}
+                  </span>
+                </td>
+              </tr>
+            }
           </tbody>
         </table>
-        <div class="empty" *ngIf="!loading && invoices.length === 0">
-          <div class="empty-title">Счетов пока нет</div>
-          <div>Создайте первый счёт кнопкой выше</div>
-        </div>
-      </div>
-
-      <div class="spinner" *ngIf="loading"></div>
-
-      <div class="modal-backdrop" *ngIf="showForm" (click)="closeForm()">
-        <div class="modal" (click)="$event.stopPropagation()">
-          <div class="row-between mb-4">
-            <h2 class="modal-title">Новый счёт</h2>
-            <button class="btn-ghost" aria-label="Закрыть" (click)="closeForm()">✕</button>
+        @if (!loading && invoices.length === 0) {
+          <div class="empty">
+            <div class="empty-title">Счетов пока нет</div>
+            <div>Создайте первый счёт кнопкой выше</div>
           </div>
-
-          <form (ngSubmit)="save()">
-            <div class="grid">
-              <div class="field">
-                <label>№ Счета *</label>
-                <input [(ngModel)]="form.invoiceNumber" name="invoiceNumber" required />
-              </div>
-              <div class="field">
-                <label>Дата *</label>
-                <input [(ngModel)]="form.invoiceDate" name="invoiceDate" type="date" required />
-              </div>
-              <div class="field">
-                <label>Поставщик</label>
-                <input [(ngModel)]="form.supplier" name="supplier" list="suppliers" />
-                <datalist id="suppliers">
-                  <option *ngFor="let s of suppliers" [value]="s"></option>
-                </datalist>
-              </div>
-              <div class="field">
-                <label>Тип счёта</label>
-                <select [(ngModel)]="form.invoiceType" name="invoiceType">
-                  <option>Основной</option>
-                  <option>Дополнительный</option>
-                  <option>Возврат</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Компания</label>
-                <select [(ngModel)]="form.company" name="company">
-                  <option *ngFor="let c of companies" [value]="c">{{ c }}</option>
-                </select>
-              </div>
-            </div>
-
-            <h3 class="mb-2">Позиции счёта</h3>
-            <div class="items">
-              <div class="item-row" *ngFor="let line of form.items; let i = index">
-                <input placeholder="Наименование" [(ngModel)]="line.itemName" [name]="'itemName' + i" />
-                <input
-                  type="number" min="0" step="0.01" placeholder="Кол-во"
-                  [(ngModel)]="line.quantity" [name]="'qty' + i"
-                  (input)="recalc(i)" class="num-input"
-                />
-                <input
-                  type="number" min="0" step="0.01" placeholder="Цена"
-                  [(ngModel)]="line.price" [name]="'price' + i"
-                  (input)="recalc(i)" class="num-input"
-                />
-                <span class="muted line-sum">{{ line.sum | number:'1.2-2' }} ₽</span>
-                <button type="button" class="btn-ghost" aria-label="Удалить позицию" (click)="removeLine(i)" [disabled]="form.items.length === 1">✕</button>
-              </div>
-              <button type="button" class="btn-ghost" (click)="addLine()">＋ Добавить позицию</button>
-            </div>
-
-            <div class="row-between mt-2 mb-4">
-              <span class="muted">Итого по счёту</span>
-              <strong class="total">{{ form.totalAmount | number:'1.2-2' }} ₽</strong>
-            </div>
-
-            <label class="row mb-4" style="gap:8px">
-              <input type="checkbox" [(ngModel)]="form.isPaid" name="isPaid" />
-              <span>Счёт оплачен</span>
-            </label>
-
-            <div class="row">
-              <button type="submit" class="btn-primary" [disabled]="saving">{{ saving ? 'Сохранение…' : 'Сохранить' }}</button>
-              <button type="button" (click)="closeForm()">Отмена</button>
-            </div>
-          </form>
-        </div>
+        }
       </div>
+
+      @if (loading) {
+        <div class="spinner"></div>
+      }
+
+      @if (showForm) {
+        <div class="modal-backdrop" (click)="closeForm()">
+          <div class="modal" (click)="$event.stopPropagation()">
+            <div class="row-between mb-4">
+              <h2 class="modal-title">Новый счёт</h2>
+              <button class="btn-ghost" aria-label="Закрыть" (click)="closeForm()">✕</button>
+            </div>
+            <form (ngSubmit)="save()">
+              <div class="grid">
+                <div class="field">
+                  <label>№ Счета *</label>
+                  <input [(ngModel)]="form.invoiceNumber" name="invoiceNumber" required />
+                </div>
+                <div class="field">
+                  <label>Дата *</label>
+                  <input [(ngModel)]="form.invoiceDate" name="invoiceDate" type="date" required />
+                </div>
+                <div class="field">
+                  <label>Поставщик</label>
+                  <input [(ngModel)]="form.supplier" name="supplier" list="suppliers" />
+                  <datalist id="suppliers">
+                    @for (s of suppliers; track s) {
+                      <option [value]="s"></option>
+                    }
+                  </datalist>
+                </div>
+                <div class="field">
+                  <label>Тип счёта</label>
+                  <select [(ngModel)]="form.invoiceType" name="invoiceType">
+                    <option>Основной</option>
+                    <option>Дополнительный</option>
+                    <option>Возврат</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Компания</label>
+                  <select [(ngModel)]="form.company" name="company">
+                    @for (c of companies; track c) {
+                      <option [value]="c">{{ c }}</option>
+                    }
+                  </select>
+                </div>
+              </div>
+              <h3 class="mb-2">Позиции счёта</h3>
+              <div class="items">
+                @for (line of form.items; track line; let i = $index) {
+                  <div class="item-row">
+                    <input
+                      placeholder="Наименование"
+                      [(ngModel)]="line.itemName"
+                      [name]="'itemName' + i"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Кол-во"
+                      [(ngModel)]="line.quantity"
+                      [name]="'qty' + i"
+                      (input)="recalc(i)"
+                      class="num-input"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Цена"
+                      [(ngModel)]="line.price"
+                      [name]="'price' + i"
+                      (input)="recalc(i)"
+                      class="num-input"
+                    />
+                    <span class="muted line-sum">{{ line.sum | number: '1.2-2' }} ₽</span>
+                    <button
+                      type="button"
+                      class="btn-ghost"
+                      aria-label="Удалить позицию"
+                      (click)="removeLine(i)"
+                      [disabled]="form.items.length === 1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                }
+                <button type="button" class="btn-ghost" (click)="addLine()">
+                  ＋ Добавить позицию
+                </button>
+              </div>
+              <div class="row-between mt-2 mb-4">
+                <span class="muted">Итого по счёту</span>
+                <strong class="total">{{ form.totalAmount | number: '1.2-2' }} ₽</strong>
+              </div>
+              <label class="row mb-4" style="gap:8px">
+                <input type="checkbox" [(ngModel)]="form.isPaid" name="isPaid" />
+                <span>Счёт оплачен</span>
+              </label>
+              <div class="row">
+                <button type="submit" class="btn-primary" [disabled]="saving">
+                  {{ saving ? 'Сохранение…' : 'Сохранить' }}
+                </button>
+                <button type="button" (click)="closeForm()">Отмена</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      }
     </div>
   `,
-  styles: [`
-    .page { max-width: 1100px; margin: 0 auto; }
-    .page-title { margin: 0 0 2px; font-size: 22px; }
-    .filters { display: flex; gap: 10px; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
-    .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(15,23,42,.5);
-      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px;
-    }
-    .modal {
-      background: #fff; border-radius: 12px; padding: 24px;
-      width: 100%; max-width: 720px; max-height: 90vh; overflow-y: auto;
-    }
-    .modal-title { margin: 0; font-size: 18px; }
-    .items { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
-    .item-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-    .item-row input:first-child { flex: 1 1 auto; }
-    .num-input { width: 110px; }
-    .line-sum { width: 110px; text-align: right; font-variant-numeric: tabular-nums; }
-    .total { font-size: 17px; }
-    @media (max-width: 700px) {
-      .grid { grid-template-columns: 1fr; }
-      .item-row { flex-wrap: wrap; }
-    }
-  `],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [
+    `
+      .page {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .page-title {
+        margin: 0 0 2px;
+        font-size: 22px;
+      }
+      .filters {
+        display: flex;
+        gap: 10px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0 18px;
+      }
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+        padding: 20px;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 12px;
+        padding: 24px;
+        width: 100%;
+        max-width: 720px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+      .modal-title {
+        margin: 0;
+        font-size: 18px;
+      }
+      .items {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .item-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      .item-row input:first-child {
+        flex: 1 1 auto;
+      }
+      .num-input {
+        width: 110px;
+      }
+      .line-sum {
+        width: 110px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .total {
+        font-size: 17px;
+      }
+      @media (max-width: 700px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .item-row {
+          flex-wrap: wrap;
+        }
+      }
+    `,
+  ],
 })
 export class InvoicesComponent implements OnInit {
   invoices: Invoice[] = [];
@@ -219,7 +309,7 @@ export class InvoicesComponent implements OnInit {
       .list(this.filterPaid)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: data => (this.invoices = data),
+        next: (data) => (this.invoices = data),
         error: () => (this.error = 'Не удалось загрузить счета'),
         complete: () => (this.loading = false),
       });
@@ -230,7 +320,8 @@ export class InvoicesComponent implements OnInit {
       .list('Suppliers')
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: all => (this.suppliers = [...new Set(all.map(d => d.name).filter(Boolean))].sort()),
+        next: (all) =>
+          (this.suppliers = [...new Set(all.map((d) => d.name).filter(Boolean))].sort()),
       });
   }
 
@@ -277,7 +368,7 @@ export class InvoicesComponent implements OnInit {
           this.toast.success('Счёт создан');
           this.fetch();
         },
-        error: err => {
+        error: (err) => {
           this.saving = false;
           const message = err?.error?.error || 'Ошибка сохранения';
           this.error = message;

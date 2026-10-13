@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * @interface IRequisition
@@ -42,6 +43,8 @@ export interface IRequisition extends Document {
   note: string;
   invoiceRef?: mongoose.Types.ObjectId;
   priceWithVat: number;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const RequisitionSchema = new Schema<IRequisition>({
@@ -69,6 +72,7 @@ const RequisitionSchema = new Schema<IRequisition>({
   note: { type: String },
   invoiceRef: { type: Schema.Types.ObjectId, ref: 'Invoice' },
   priceWithVat: { type: Number, required: true },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
@@ -77,5 +81,7 @@ const RequisitionSchema = new Schema<IRequisition>({
 
 RequisitionSchema.index({ date: -1 });
 RequisitionSchema.index({ status: 1 });
+// T-6.6: фильтр по заказчику — горячее поле в списках заявок
+RequisitionSchema.index({ customer: 1 });
 
 export const Requisition = mongoose.model<IRequisition>('Requisition', RequisitionSchema);

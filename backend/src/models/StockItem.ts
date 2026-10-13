@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * @interface IStockItem
@@ -32,6 +33,8 @@ export interface IStockItem extends Document {
   weight: number;
   categoryRef: mongoose.Types.ObjectId;
   unitRef: mongoose.Types.ObjectId;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const StockItemSchema = new Schema<IStockItem>({
@@ -49,6 +52,7 @@ const StockItemSchema = new Schema<IStockItem>({
   weight: { type: Number, default: 0 },
   categoryRef: { type: Schema.Types.ObjectId, ref: 'Dictionary' },
   unitRef: { type: Schema.Types.ObjectId, ref: 'Dictionary' },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

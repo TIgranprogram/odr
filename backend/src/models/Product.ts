@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * Номенклатура каталога (импорт `db_spotninyg - products.csv`).
@@ -26,6 +27,8 @@ export interface IProduct extends Document {
   price: number;
   unit: string;
   fullName: string;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const ProductSchema = new Schema<IProduct>({
@@ -40,6 +43,7 @@ const ProductSchema = new Schema<IProduct>({
   price: { type: Number, default: 0 },
   unit: { type: String, default: '' },
   fullName: { type: String, default: '' },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

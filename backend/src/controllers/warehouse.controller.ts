@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import * as WarehouseService from '../services/warehouse.service';
 import { asyncHandler } from '../utils/asyncHandler';
+import { getOrgId } from '../utils/tenant';
 import {
   ensureObject,
   optionalString,
@@ -13,8 +14,8 @@ import {
 const MOVEMENT_FIELDS = ['date', 'type', 'itemName', 'quantity', 'unit', 'targetOrderItemRef', 'note'] as const;
 const MOVEMENT_TYPES = ['INCOME', 'OUTCOME'] as const;
 
-export const getAll = asyncHandler(async (_req: Request, res: Response) => {
-  const items = await WarehouseService.getAll();
+export const getAll = asyncHandler(async (req: Request, res: Response) => {
+  const items = await WarehouseService.getAll(getOrgId(req));
   res.json(items);
 });
 
@@ -28,7 +29,10 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
   optionalString(allowed.unit, 'unit');
   optionalString(allowed.note, 'note');
 
-  const saved = await WarehouseService.create(allowed as Parameters<typeof WarehouseService.create>[0]);
+  const saved = await WarehouseService.create({
+    ...allowed,
+    organizationId: getOrgId(req),
+  } as Parameters<typeof WarehouseService.create>[0]);
   res.status(201).json(saved);
 });
 

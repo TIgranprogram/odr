@@ -13,10 +13,15 @@
 2. `.gitignore` создан, `.env` исключён из коммитов.
 3. Проведён **повторный аудит** с фактическими сборками (см. AGENT_TASKS §0).
 4. Оставшиеся работы сведены в **`docs/tasks/AGENT_TASKS.md`** (актуальное ТЗ).
+5. **Закрыты все оставшиеся задачи** (13.10.2026): апгрейд Angular 17→22 (audit 66→0),
+   P3-долг T-6.1/6.2/6.3/6.6 (audit-log, snapshots, tenant isolation, индексы), обновление
+   dev-тулчейна (Jest 30, ESLint 9/10 flat config). Проверено: backend tsc/build/lint/test 25/25,
+   frontend build/lint/audit 0, Docker-compose E2E (seed → API → nginx) зелёное.
 
 ## ⏭️ Следующие шаги
-1. 🟠 Апгрейд Angular (frontend-prod, 7 уязвимостей в `@angular/core`) — запланирован отдельной задачей.
-2. ⚪ Остаточный техдолг P3 (отложено): tenant isolation, snapshot, audit-log, оптимизация Mongo (T-6.1/6.2/6.3/6.6).
+1. ✅ Апгрейд Angular выполнен (17.3 → 22.2.2, audit 66 → 0).
+2. ✅ Техдолг P3 выполнен: tenant isolation (T-6.1), snapshotting (T-6.2), audit-log (T-6.3),
+   индексы Mongo (T-6.6). Тесты 25/25, проверено end-to-end через Docker/nginx.
 
 ## 🚨 Статус проблем (перепроверено 13.10.2026)
 
@@ -39,13 +44,14 @@
   - **T-1.4** Docker: one-shot сервис `seed` (depends_on mongodb healthy); API стартует после `service_completed_successfully`.
     Смонтирована папка `данные для заполнения на сайте/data` → `/data/seed`.
 
-**❌ Осталось (главное):**
-- ⚪ **Технический долг (P3, отложено):** нет tenant isolation (`organizationId`), snapshot-снимков,
-  audit-log, оптимизации Mongo-запросов (T-6.1/6.2/6.3/6.6). Реализованы Swagger/OpenAPI (T-6.4)
-  и `docs/pages/*.page.md` (T-6.5).
-- 🟠 **`npm audit`:** production-backend — 0 уязвимостей; frontend-prod — 7 в `@angular/core`
-  (требует мажорного апгрейда Angular). Dev-транзитивные предупреждения (`--force` не применялся
-  во избежание поломки сборки). **Запланирована отдельная задача: поэтапный `ng update`.**
+**✅ Осталось (закрыто 13.10.2026):**
+- ✅ **Технический долг P3:** tenant isolation (`organizationId`, JWT + скоуп сервисов, fallback
+  старых токенов), snapshot-снимки при смене статуса (неизменяемы на уровне API и Mongoose),
+  audit-log (8 сущностей, `GET /api/audit-logs` — ADMIN), индексы Mongo (T-6.1/6.2/6.3/6.6).
+  Тесты 9 → **25/25**. Swagger/OpenAPI (T-6.4) и `docs/pages/*.page.md` (T-6.5) — ранее.
+- ✅ **`npm audit`:** backend prod — 0; **frontend — 0** (апгрейд Angular 17.3 → 22.2.2:
+  builder `@angular/build`, TS ~6.0.3, ESLint 10 flat config). Backend dev — 23 (всё остаточное
+  без фикс-релизов: `braces` через nodemon/chokidar, `sprintf-js` через jest-тулчейн; dev-only).
 
 **✅ Волны 2–5 и 7 — закрыты и проверены (13.10.2026):**
 - **Безопасность (T-2.x):** `/auth/refresh` + refresh-интерцептор; публичная регистрация закрыта,
@@ -62,7 +68,7 @@
 
 ## 📝 Контекст и решения
 - **Стек (фактический):** Express + TypeScript + Mongoose (backend),
-  Angular 17 standalone (frontend), MongoDB 7, Docker Desktop.
+  Angular 22 standalone (frontend), MongoDB 7, Docker Desktop.
   ⚠️ `CURRENT_STATE` ранее заявлял NestJS — это не соответствовало коду.
 - **State Management:** обновляем этот файл после каждого этапа.
 - **Snapshot Immutability:** неизменяемые снимки при переходах статусов
@@ -77,7 +83,7 @@
 |---|---|
 | Node | v24.21.0 (npm через `cmd /c "npm ..."`) |
 | Docker | Desktop 29.8.2, Compose v5.6.0 |
-| MongoDB | контейнер `odr-mongo` (нужно поднять: `docker run -d --name odr-mongo -p 27017:27017 mongo:7`) |
+| MongoDB | контейнер `odr-mongodb` (поднимается через `docker compose up -d`) |
 | Backend | `http://localhost:3000` |
 | Frontend | `http://localhost:4200` |
 | PowerShell | блокирует `npm.ps1` → использовать `cmd /c` |

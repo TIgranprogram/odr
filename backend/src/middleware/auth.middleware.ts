@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt, { JwtPayload } from 'jsonwebtoken';
 import { env } from '../config/env';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
@@ -17,7 +18,9 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
       return res.status(401).json({ error: 'Refresh token cannot be used as access token' });
     }
 
-    req.user = decoded;
+    // T-6.1: старые токены без organizationId получают fallback 'default-org',
+    // чтобы single-tenant деплой продолжал работать без перелогина.
+    req.user = { ...decoded, organizationId: decoded.organizationId || DEFAULT_ORGANIZATION_ID };
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });

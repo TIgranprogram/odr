@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * «Прочие поступления» (см. docs/ODR_LOGIC.md): доход, не связанный со счётом
@@ -14,6 +15,8 @@ export interface IAdditionalIncome extends Document {
   amount: number;
   category: string;
   note?: string;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const AdditionalIncomeSchema = new Schema<IAdditionalIncome>({
@@ -21,6 +24,7 @@ const AdditionalIncomeSchema = new Schema<IAdditionalIncome>({
   amount: { type: Number, required: true, min: 0 },
   category: { type: String, required: true, trim: true },
   note: { type: String, trim: true },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

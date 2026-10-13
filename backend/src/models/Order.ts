@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * @interface IOrder
@@ -18,6 +19,8 @@ export interface IOrder extends Document {
   totalAmount: number;
   orderDate: Date;
   note: string;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const OrderSchema = new Schema<IOrder>({
@@ -36,6 +39,7 @@ const OrderSchema = new Schema<IOrder>({
   totalAmount: { type: Number, required: true },
   orderDate: { type: Date, default: Date.now },
   note: { type: String },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

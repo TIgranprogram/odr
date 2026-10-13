@@ -5,8 +5,11 @@ import { ValidationError } from '../utils/validate';
 /** Без пароля: хэш наружу не отдаём ни в одном ответе. */
 const SAFE_FIELDS = '-password';
 
-export const listUsers = async (): Promise<IUser[]> => {
-  return await User.find().select(SAFE_FIELDS).sort({ username: 1 }).exec();
+/** T-6.1: список пользователей скоупится по организации (необязательный параметр). */
+export const listUsers = async (organizationId?: string): Promise<IUser[]> => {
+  const filter: Record<string, unknown> = {};
+  if (organizationId) filter.organizationId = organizationId;
+  return await User.find(filter).select(SAFE_FIELDS).sort({ username: 1 }).exec();
 };
 
 export const getUser = async (id: string): Promise<IUser | null> => {
@@ -17,10 +20,11 @@ export const createUser = async (
   username: string,
   password: string,
   fullName: string,
-  role: 'ADMIN' | 'USER'
+  role: 'ADMIN' | 'USER',
+  organizationId?: string
 ): Promise<IUser> => {
   const hashed = await hashPassword(password);
-  const user = new User({ username, password: hashed, fullName, role });
+  const user = new User({ username, password: hashed, fullName, role, organizationId });
   const saved = await user.save();
   saved.password = '';
   return saved;

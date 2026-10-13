@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * @interface IWarehouseMovement
@@ -18,6 +19,8 @@ export interface IWarehouseMovement extends Document {
   unit: string;
   targetOrderItemRef?: mongoose.Types.ObjectId;
   note: string;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const WarehouseMovementSchema = new Schema<IWarehouseMovement>({
@@ -28,6 +31,7 @@ const WarehouseMovementSchema = new Schema<IWarehouseMovement>({
   unit: { type: String },
   targetOrderItemRef: { type: Schema.Types.ObjectId, ref: 'Order' },
   note: { type: String },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

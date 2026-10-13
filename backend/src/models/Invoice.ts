@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * @interface IInvoice
@@ -22,6 +23,8 @@ export interface IInvoice extends Document {
   totalAmount: number;
   isPaid: boolean;
   note: string;
+  /** T-6.1: организация-владелец записи */
+  organizationId: string;
 }
 
 const InvoiceSchema = new Schema<IInvoice>({
@@ -41,6 +44,7 @@ const InvoiceSchema = new Schema<IInvoice>({
   totalAmount: { type: Number, required: true },
   isPaid: { type: Boolean, default: false },
   note: { type: String },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

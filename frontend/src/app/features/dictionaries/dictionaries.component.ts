@@ -1,5 +1,5 @@
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, OnInit, inject, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+
 import { FormsModule } from '@angular/forms';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DictionaryService } from '../../core/services/dictionary.service';
@@ -9,8 +9,7 @@ import { DictionaryItem } from '../../core/models';
 
 @Component({
   selector: 'app-dictionaries',
-  standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   template: `
     <div class="page">
       <div class="row-between mb-4">
@@ -20,13 +19,17 @@ import { DictionaryItem } from '../../core/models';
         </div>
       </div>
 
-      <div class="alert alert-error" *ngIf="error">{{ error }}</div>
+      @if (error) {
+        <div class="alert alert-error">{{ error }}</div>
+      }
 
       <div class="card mb-4">
         <div class="filters">
           <select [(ngModel)]="selectedCategory" (change)="fetch()">
             <option value="">Все категории</option>
-            <option *ngFor="let cat of categories" [value]="cat">{{ categoryLabel(cat) }}</option>
+            @for (cat of categories; track cat) {
+              <option [value]="cat">{{ categoryLabel(cat) }}</option>
+            }
           </select>
         </div>
       </div>
@@ -42,24 +45,46 @@ import { DictionaryItem } from '../../core/models';
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let item of items">
-              <td><span class="badge badge-slate">{{ categoryLabel(item.category) }}</span></td>
-              <td>{{ item.name }}</td>
-              <td class="muted">{{ item.value }}</td>
-              <td class="text-right">
-                <button class="btn-ghost" title="Редактировать" aria-label="Редактировать запись" (click)="startEdit(item)">✏️</button>
-                <button class="btn-ghost" title="Удалить" aria-label="Удалить запись" (click)="remove(item)">🗑️</button>
-              </td>
-            </tr>
+            @for (item of items; track item) {
+              <tr>
+                <td>
+                  <span class="badge badge-slate">{{ categoryLabel(item.category) }}</span>
+                </td>
+                <td>{{ item.name }}</td>
+                <td class="muted">{{ item.value }}</td>
+                <td class="text-right">
+                  <button
+                    class="btn-ghost"
+                    title="Редактировать"
+                    aria-label="Редактировать запись"
+                    (click)="startEdit(item)"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    class="btn-ghost"
+                    title="Удалить"
+                    aria-label="Удалить запись"
+                    (click)="remove(item)"
+                  >
+                    🗑️
+                  </button>
+                </td>
+              </tr>
+            }
           </tbody>
         </table>
-        <div class="empty" *ngIf="!loading && items.length === 0">
-          <div class="empty-title">Записей нет</div>
-          <div>Добавьте первую запись ниже</div>
-        </div>
+        @if (!loading && items.length === 0) {
+          <div class="empty">
+            <div class="empty-title">Записей нет</div>
+            <div>Добавьте первую запись ниже</div>
+          </div>
+        }
       </div>
 
-      <div class="spinner" *ngIf="loading"></div>
+      @if (loading) {
+        <div class="spinner"></div>
+      }
 
       <div class="card">
         <h3 class="mb-4">{{ editingId ? 'Редактировать запись' : 'Новая запись' }}</h3>
@@ -69,7 +94,9 @@ import { DictionaryItem } from '../../core/models';
               <label>Категория *</label>
               <select [(ngModel)]="form.category" name="category" required>
                 <option value="" disabled>Выберите…</option>
-                <option *ngFor="let c of categories" [value]="c">{{ categoryLabel(c) }}</option>
+                @for (c of categories; track c) {
+                  <option [value]="c">{{ categoryLabel(c) }}</option>
+                }
               </select>
             </div>
             <div class="field">
@@ -85,19 +112,41 @@ import { DictionaryItem } from '../../core/models';
             <button type="submit" class="btn-primary" [disabled]="saving">
               {{ saving ? 'Сохранение…' : editingId ? 'Обновить' : 'Добавить' }}
             </button>
-            <button type="button" (click)="resetForm()" *ngIf="editingId">Отмена</button>
+            @if (editingId) {
+              <button type="button" (click)="resetForm()">Отмена</button>
+            }
           </div>
         </form>
       </div>
     </div>
   `,
-  styles: [`
-    .page { max-width: 1000px; margin: 0 auto; }
-    .page-title { margin: 0 0 2px; font-size: 22px; }
-    .filters { display: flex; gap: 10px; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 18px; }
-    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
-  `],
+  changeDetection: ChangeDetectionStrategy.Eager,
+  styles: [
+    `
+      .page {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+      .page-title {
+        margin: 0 0 2px;
+        font-size: 22px;
+      }
+      .filters {
+        display: flex;
+        gap: 10px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0 18px;
+      }
+      @media (max-width: 700px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    `,
+  ],
 })
 export class DictionariesComponent implements OnInit {
   items: DictionaryItem[] = [];
@@ -128,7 +177,7 @@ export class DictionariesComponent implements OnInit {
       .list(this.selectedCategory || undefined)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: data => (this.items = data),
+        next: (data) => (this.items = data),
         error: () => (this.error = 'Не удалось загрузить справочник'),
         complete: () => (this.loading = false),
       });
@@ -158,7 +207,7 @@ export class DictionariesComponent implements OnInit {
         this.resetForm();
         this.fetch();
       },
-      error: err => {
+      error: (err) => {
         this.saving = false;
         const message = err?.error?.error || 'Ошибка сохранения';
         this.error = message;
@@ -174,10 +223,10 @@ export class DictionariesComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          this.items = this.items.filter(i => i._id !== item._id);
+          this.items = this.items.filter((i) => i._id !== item._id);
           this.toast.success('Запись удалена');
         },
-        error: err => {
+        error: (err) => {
           const message = err?.error?.error || 'Ошибка удаления';
           this.error = message;
           this.toast.error(message);

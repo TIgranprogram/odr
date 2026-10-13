@@ -1,8 +1,11 @@
 import mongoose from 'mongoose';
 import { Invoice, IInvoice } from '../models/Invoice';
 
-export const getAll = async (): Promise<IInvoice[]> => {
-  return await Invoice.find({}).sort({ invoiceDate: -1 }).exec();
+/** T-6.1: список счетов скоупится по организации (необязательный параметр). */
+export const getAll = async (organizationId?: string): Promise<IInvoice[]> => {
+  const filter: Record<string, unknown> = {};
+  if (organizationId) filter.organizationId = organizationId;
+  return await Invoice.find(filter).sort({ invoiceDate: -1 }).exec();
 };
 
 export const create = async (data: Partial<IInvoice>): Promise<IInvoice> => {

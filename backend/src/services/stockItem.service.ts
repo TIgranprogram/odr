@@ -1,8 +1,11 @@
 import { StockItem, IStockItem } from '../models/StockItem';
 import * as DictionaryService from './dictionary.service';
 
-export const getAll = async (): Promise<IStockItem[]> => {
-  return await StockItem.find({}).sort({ name: 1 }).exec();
+/** T-6.1: список скоупится по организации (необязательный параметр). */
+export const getAll = async (organizationId?: string): Promise<IStockItem[]> => {
+  const filter: Record<string, unknown> = {};
+  if (organizationId) filter.organizationId = organizationId;
+  return await StockItem.find(filter).sort({ name: 1 }).exec();
 };
 
 export const create = async (data: Partial<IStockItem> & { categoryRef?: unknown; unitRef?: unknown }): Promise<IStockItem> => {

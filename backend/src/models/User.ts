@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import { DEFAULT_ORGANIZATION_ID } from '../utils/tenant';
 
 /**
  * @interface IUser
@@ -7,6 +8,7 @@ import mongoose, { Schema, Document } from 'mongoose';
  * @property {string} fullName - ФИО
  * @property {string} role - Роль ('ADMIN' | 'USER')
  * @property {boolean} isActive - Активность пользователя
+ * @property {string} organizationId - Организация (T-6.1 tenant isolation)
  */
 export interface IUser extends Document {
   username: string;
@@ -14,6 +16,7 @@ export interface IUser extends Document {
   fullName: string;
   role: 'ADMIN' | 'USER';
   isActive: boolean;
+  organizationId: string;
 }
 
 const UserSchema = new Schema<IUser>({
@@ -22,6 +25,7 @@ const UserSchema = new Schema<IUser>({
   fullName: { type: String, required: true },
   role: { type: String, enum: ['ADMIN', 'USER'], default: 'USER' },
   isActive: { type: Boolean, default: true },
+  organizationId: { type: String, default: DEFAULT_ORGANIZATION_ID },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

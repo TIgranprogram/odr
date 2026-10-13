@@ -32,15 +32,22 @@ export interface OdrReport {
  *   (AdditionalIncome.amount) за период.
  * Expense: сумма Requisition.priceWithVat * quantity, где статус в ODR_EXPENSE_STATUSES
  * и заявка ещё не покрыта счётом (invoiceRef не заполнен) — иначе двойной учёт.
+ * organizationId (T-6.1): если передан — все агрегации скоупятся по организации.
  */
-export const getReport = async (startDate: Date, endDate: Date): Promise<OdrReport> => {
+export const getReport = async (
+  startDate: Date,
+  endDate: Date,
+  organizationId?: string
+): Promise<OdrReport> => {
+  const orgMatch = organizationId ? { organizationId } : {};
+
   const income = await Invoice.aggregate([
-    { $match: { invoiceDate: { $gte: startDate, $lte: endDate }, isPaid: true } },
+    { $match: { invoiceDate: { $gte: startDate, $lte: endDate }, isPaid: true, ...orgMatch } },
     { $group: { _id: null, total: { $sum: '$totalAmount' } } },
   ]);
 
   const additionalIncome = await AdditionalIncome.aggregate([
-    { $match: { date: { $gte: startDate, $lte: endDate } } },
+    { $match: { date: { $gte: startDate, $lte: endDate }, ...orgMatch } },
     { $group: { _id: null, total: { $sum: '$amount' } } },
   ]);
 
@@ -50,6 +57,7 @@ export const getReport = async (startDate: Date, endDate: Date): Promise<OdrRepo
         date: { $gte: startDate, $lte: endDate },
         status: { $in: ODR_EXPENSE_STATUSES },
         $or: [{ invoiceRef: { $exists: false } }, { invoiceRef: null }],
+        ...orgMatch,
       },
     },
     {

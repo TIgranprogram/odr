@@ -9,12 +9,15 @@ export interface ProductQuery {
   category?: string;
   supplier?: string;
   search?: string;
+  /** T-6.1: скоуп организации */
+  organizationId?: string;
 }
 
 export const getAll = async (query: ProductQuery = {}): Promise<IProduct[]> => {
   const filter: Record<string, unknown> = {};
   if (query.category) filter.category = query.category;
   if (query.supplier) filter.supplier = query.supplier;
+  if (query.organizationId) filter.organizationId = query.organizationId;
   if (query.search) {
     const rx = new RegExp(String(query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     filter.$or = [{ name: rx }, { fullName: rx }, { internalSku: rx }, { supplierArticle: rx }, { brand: rx }];

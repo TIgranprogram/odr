@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import * as UserService from '../services/user.service';
+import * as AuditService from '../services/audit.service';
 import { asyncHandler } from '../utils/asyncHandler';
+import { getOrgId } from '../utils/tenant';
 import {
   ensureObject,
   optionalString,
@@ -11,8 +13,12 @@ import {
 
 const ROLES = ['ADMIN', 'USER'] as const;
 
-export const getAll = asyncHandler(async (_req: Request, res: Response) => {
-  res.json(await UserService.listUsers());
+const ENTITY = 'users';
+// Пароль в аудит не попадает ни в каком виде
+const USER_AUDIT_FIELDS = ['username', 'fullName', 'role', 'isActive'] as const;
+
+export const getAll = asyncHandler(async (req: Request, res: Response) => {
+  res.json(await UserService.listUsers(getOrgId(req)));
 });
 
 export const getById = asyncHandler(async (req: Request, res: Response) => {
@@ -32,7 +38,10 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
-  const created = await UserService.createUser(username, password, fullName, role);
+  const created = await UserService.createUser(username, password, fullName, role, getOrgId(req));
+  await AuditService.logEntityAction({
+    entityType: ENTITY, action: 'CREATE', req, after: created, fields: USER_AUDIT_FIELDS,
+  });
   res.status(201).json(created);
 });
 
@@ -51,13 +60,23 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
+  const before = await UserService.getUser(req.params.id);
+  if (!before) return res.status(404).json({ error: 'Not found' });
+
   const updated = await UserService.updateUser(req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Not found' });
+  await AuditService.logEntityAction({
+    entityType: ENTITY, action: 'UPDATE', req, before, after: updated, fields: USER_AUDIT_FIELDS,
+  });
   res.json(updated);
 });
 
 export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const before = await UserService.getUser(req.params.id);
   const ok = await UserService.deleteUser(req.params.id);
   if (!ok) return res.status(404).json({ error: 'Not found' });
+  await AuditService.logEntityAction({
+    entityType: ENTITY, action: 'DELETE', req, before, fields: USER_AUDIT_FIELDS,
+  });
   res.json({ message: 'Deleted successfully' });
 });

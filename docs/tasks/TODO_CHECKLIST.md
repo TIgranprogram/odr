@@ -46,17 +46,17 @@
 - [x] 🟠 Эндпоинт `/auth/refresh` + refresh-интерцептор (T-2.1)
 - [x] 🟠 Закрыть публичную регистрацию + `/api/users` + roleMiddleware (T-2.2)
 - [x] 🟠 CORS whitelist + rate-limit на `/login` (T-2.3)
-- [~] 🟠 Обновить зависимости по `npm audit` (T-2.4) — prod-backend: 0; dev-транзитивные остаются, `--force` не применялся (риск поломки)
+- [x] 🟠 Обновить зависимости по `npm audit` (T-2.4) — backend prod: 0; frontend: 0 (после апгрейда Angular)
 - [x] 🟠 DTO-валидация входных данных (T-2.5, через `utils/validate.ts`)
 - [x] 🟠 Импорт `products.csv` — каталог, 288 позиций (T-3.1)
 - [x] 🟠 Единый путь к данным seed + fail-fast (T-3.2)
 - [x] 🟠 Категории из CSV → `Types` (T-3.3)
 - [x] 🟡 Сервисный слой frontend, общие модели, пагинация (T-4.1–T-4.6)
 - [x] 🟡 ESLint/Prettier, smoke-тесты, health-check БД, CI (T-5.1–T-5.5)
-- [~] ⚪ Tenant isolation, snapshotting, audit-log (T-6.1/6.2/6.3/6.6) — отложено (P3)
+- [x] ⚪ Tenant isolation, snapshotting, audit-log, индексы (T-6.1/6.2/6.3/6.6) — выполнено (тесты 25/25)
 - [x] ⚪ Swagger/OpenAPI (T-6.4) — `/api/docs` + `/api/openapi.json`
 - [x] ⚪ `docs/pages/*.page.md` для каждого экрана (T-6.5)
-- [~] 🟠 Апгрейд Angular (следствие T-2.4) — запланирован отдельной задачей
+- [x] 🟠 Апгрейд Angular 17.3 → 22.2.2 (следствие T-2.4) — audit 66 → 0
 - [x] 🟡 Документация: устранены противоречия (T-7.x); `docs/pages/*.page.md` — остаётся (T-6.5)
 
 ---
