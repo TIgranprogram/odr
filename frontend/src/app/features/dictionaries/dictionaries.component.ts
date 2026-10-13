@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, DestroyRef } from '@angular/core';
 import { API_URL } from '../../core/api';
 import { DICTIONARY_CATEGORIES } from '../../core/constants';
 
@@ -121,6 +122,8 @@ export class DictionariesComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     this.fetch();
   }
@@ -134,7 +137,7 @@ export class DictionariesComponent implements OnInit {
 
     this.http
       .get<DictionaryItem[]>(url)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.items = data),
         error: () => (this.error = 'Не удалось загрузить справочник'),
@@ -159,7 +162,7 @@ export class DictionariesComponent implements OnInit {
       ? this.http.put<DictionaryItem>(`${API_URL}/api/dictionaries/${this.editingId}`, this.form)
       : this.http.post<DictionaryItem>(`${API_URL}/api/dictionaries`, this.form);
 
-    request.pipe(takeUntilDestroyed()).subscribe({
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving = false;
         this.notice = this.editingId ? 'Запись обновлена' : 'Запись добавлена';
@@ -178,7 +181,7 @@ export class DictionariesComponent implements OnInit {
     if (!confirm(`Удалить «${item.name}»?`)) return;
     this.http
       .delete(`${API_URL}/api/dictionaries/${item._id}`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.items = this.items.filter(i => i._id !== item._id);

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, DestroyRef } from '@angular/core';
 import { API_URL } from '../../core/api';
 import { COMPANIES } from '../../core/constants';
 
@@ -220,6 +221,8 @@ export class InvoicesComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     this.fetch();
     this.fetchSuppliers();
@@ -233,7 +236,7 @@ export class InvoicesComponent implements OnInit {
 
     this.http
       .get<Invoice[]>(`${API_URL}/api/invoices`, { params })
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.invoices = data),
         error: () => (this.error = 'Не удалось загрузить счета'),
@@ -244,7 +247,7 @@ export class InvoicesComponent implements OnInit {
   private fetchSuppliers(): void {
     this.http
       .get<{ name: string }[]>(`${API_URL}/api/dictionaries/Suppliers`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: all => (this.suppliers = [...new Set(all.map(d => d.name).filter(Boolean))].sort()),
       });
@@ -285,7 +288,7 @@ export class InvoicesComponent implements OnInit {
 
     this.http
       .post<Invoice>(`${API_URL}/api/invoices`, payload)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.saving = false;

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, DestroyRef } from '@angular/core';
 import { API_URL } from '../../core/api';
 
 interface OdrReport {
@@ -85,6 +86,8 @@ export class OdrComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     this.setPeriod('month');
   }
@@ -107,7 +110,7 @@ export class OdrComponent implements OnInit {
     this.error = '';
     this.http
       .get<OdrReport>(`${API_URL}/api/odr`, { params: { start: this.start, end: this.end } })
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.report = data),
         error: () => (this.error = 'Не удалось загрузить отчёт'),

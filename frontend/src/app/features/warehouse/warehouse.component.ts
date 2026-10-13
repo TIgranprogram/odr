@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, DestroyRef } from '@angular/core';
 import { API_URL } from '../../core/api';
 
 interface StockItem {
@@ -137,6 +138,8 @@ export class WarehouseComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     this.fetchStock();
     this.fetchMovements();
@@ -146,7 +149,7 @@ export class WarehouseComponent implements OnInit {
     this.loading = true;
     this.http
       .get<StockItem[]>(`${API_URL}/api/stockItems`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => {
           this.items = data;
@@ -161,7 +164,7 @@ export class WarehouseComponent implements OnInit {
     this.loadingMovements = true;
     this.http
       .get<Movement[]>(`${API_URL}/api/warehouse`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.movements = data),
         complete: () => (this.loadingMovements = false),

@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, DestroyRef } from '@angular/core';
 import { API_URL } from '../../core/api';
 
 interface Order {
@@ -70,11 +71,13 @@ export class OrdersComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     this.loading = true;
     this.http
       .get<Order[]>(`${API_URL}/api/orders`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.orders = data),
         error: err => (this.error = err?.status === 404 ? 'Эндпоинт заказов ещё не подключён на сервере' : 'Не удалось загрузить заказы'),

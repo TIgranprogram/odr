@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { inject, DestroyRef } from '@angular/core';
 import { API_URL } from '../../core/api';
 import { STATUSES, PRIORITIES } from '../../core/constants';
 
@@ -227,6 +228,8 @@ export class RequisitionsComponent implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  private readonly destroyRef = inject(DestroyRef);
+
   ngOnInit(): void {
     this.fetch();
     this.fetchDictionaries();
@@ -242,7 +245,7 @@ export class RequisitionsComponent implements OnInit {
 
     this.http
       .get<Requisition[]>(`${API_URL}/api/requisitions`, { params })
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: data => (this.items = data),
         error: () => (this.error = 'Не удалось загрузить заявки'),
@@ -253,7 +256,7 @@ export class RequisitionsComponent implements OnInit {
   private fetchDictionaries(): void {
     this.http
       .get<{ category: string; name: string; value: string }[]>(`${API_URL}/api/dictionaries`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: all => {
           this.categories = unique(all.filter(d => d.category === 'Types').map(d => d.name));
@@ -288,7 +291,7 @@ export class RequisitionsComponent implements OnInit {
       ? this.http.put<Requisition>(`${API_URL}/api/requisitions/${this.editingId}`, payload)
       : this.http.post<Requisition>(`${API_URL}/api/requisitions`, payload);
 
-    request.pipe(takeUntilDestroyed()).subscribe({
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving = false;
         this.showForm = false;
@@ -307,7 +310,7 @@ export class RequisitionsComponent implements OnInit {
     if (!confirm(`Удалить заявку «${item.itemName}»?`)) return;
     this.http
       .delete(`${API_URL}/api/requisitions/${item._id}`)
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.items = this.items.filter(i => i._id !== item._id);
