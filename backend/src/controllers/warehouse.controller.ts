@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import * as WarehouseService from '../services/warehouse.service';
+import * as AuditService from '../services/audit.service';
 import { asyncHandler } from '../utils/asyncHandler';
 import { getOrgId } from '../utils/tenant';
 import {
@@ -13,6 +14,8 @@ import {
 
 const MOVEMENT_FIELDS = ['date', 'type', 'itemName', 'quantity', 'unit', 'targetOrderItemRef', 'note'] as const;
 const MOVEMENT_TYPES = ['INCOME', 'OUTCOME'] as const;
+
+const ENTITY = 'warehouse';
 
 export const getAll = asyncHandler(async (req: Request, res: Response) => {
   const items = await WarehouseService.getAll(getOrgId(req));
@@ -33,6 +36,9 @@ export const create = asyncHandler(async (req: Request, res: Response) => {
     ...allowed,
     organizationId: getOrgId(req),
   } as Parameters<typeof WarehouseService.create>[0]);
+  await AuditService.logEntityAction({
+    entityType: ENTITY, action: 'CREATE', req, after: saved, fields: MOVEMENT_FIELDS,
+  });
   res.status(201).json(saved);
 });
 
@@ -43,6 +49,9 @@ export const findById = asyncHandler(async (req: Request, res: Response) => {
 });
 
 export const update = asyncHandler(async (req: Request, res: Response) => {
+  const before = await WarehouseService.findById(req.params.id);
+  if (!before) return res.status(404).json({ error: 'Not found' });
+
   const body = ensureObject(req.body);
   const allowed = pickAllowed(body, MOVEMENT_FIELDS);
   if (allowed.itemName !== undefined) requireString(allowed.itemName, 'itemName');
@@ -51,11 +60,18 @@ export const update = asyncHandler(async (req: Request, res: Response) => {
 
   const updated = await WarehouseService.update(req.params.id, allowed as Parameters<typeof WarehouseService.update>[1]);
   if (!updated) return res.status(404).json({ error: 'Not found' });
+  await AuditService.logEntityAction({
+    entityType: ENTITY, action: 'UPDATE', req, before, after: updated, fields: MOVEMENT_FIELDS,
+  });
   res.json(updated);
 });
 
 export const remove = asyncHandler(async (req: Request, res: Response) => {
+  const before = await WarehouseService.findById(req.params.id);
   const deleted = await WarehouseService.remove(req.params.id);
   if (!deleted) return res.status(404).json({ error: 'Not found' });
+  await AuditService.logEntityAction({
+    entityType: ENTITY, action: 'DELETE', req, before, fields: MOVEMENT_FIELDS,
+  });
   res.json({ message: 'Deleted successfully' });
 });

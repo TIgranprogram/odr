@@ -88,6 +88,7 @@ docs/tasks/         AGENT_TASKS.md (ТЗ), AGENT_PROMPTS.md, TODO_CHECKLIST.md
 | Файл | Содержание |
 |---|---|
 | [`docs/CURRENT_STATE.md`](docs/CURRENT_STATE.md) | «Файл сохранения» — где мы сейчас |
+| [`docs/data-model.md`](docs/data-model.md) | Схема данных MongoDB (поля, связи, индексы) |
 | [`docs/tasks/AGENT_TASKS.md`](docs/tasks/AGENT_TASKS.md) | **Актуальное ТЗ для агентов** |
 | [`docs/pages/`](docs/pages/README.md) | Описание экранов (`*.page.md`) |
 | API docs | Swagger UI: `http://localhost:3000/api/docs` (спека — `/api/openapi.json`) |

@@ -189,11 +189,12 @@ export const openapiSpec: Record<string, unknown> = {
         required: ['type', 'date', 'itemName', 'quantity'],
         properties: {
           _id: { type: 'string' },
-          type: { type: 'string', enum: ['INCOME', 'EXPENSE'] },
+          type: { type: 'string', enum: ['INCOME', 'OUTCOME'], default: 'INCOME' },
           date: { type: 'string', format: 'date-time' },
           itemName: { type: 'string' },
           quantity: { type: 'number' },
           unit: { type: 'string' },
+          targetOrderItemRef: { type: 'string', nullable: true, description: 'ObjectId позиции заказа' },
           note: { type: 'string' },
         },
       },
